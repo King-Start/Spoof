@@ -1,11 +1,5 @@
-
----
-
-## 📄 **FILE 5: server.js (BACKEND)**
-
-```javascript
 // ==========================================
-// SIRLION SPOOF MUSIC - SERVER
+// SIRLION SPOOF MUSIC - FIXED FOR RAILWAY
 // ==========================================
 
 const express = require('express');
@@ -25,22 +19,17 @@ const PORT = process.env.PORT || 3000;
 // ==========================================
 app.use(cors());
 app.use(express.json());
+
+// ==========================================
+// STATIC FILES (Frontend)
+// ==========================================
 app.use(express.static('public'));
 
-// Setup upload
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const dir = './uploads';
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-        cb(null, dir);
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname);
-    }
-});
-
-const upload = multer({ 
-    storage,
+// ==========================================
+// UPLOAD CONFIG - PAKE MEMORY STORAGE!
+// ==========================================
+const upload = multer({
+    storage: multer.memoryStorage(),  // ⚠️ PAKE INI, BUKAN DISK!
     limits: { fileSize: 20 * 1024 * 1024 }
 });
 
@@ -52,6 +41,7 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
         const apiKey = req.headers['x-api-key'] || process.env.ROBLOX_API_KEY;
         const userId = req.headers['x-user-id'] || process.env.ROBLOX_USER_ID;
 
+        // CEK API KEY & USER ID
         if (!apiKey || !userId) {
             return res.status(400).json({ 
                 success: false, 
@@ -59,6 +49,7 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
             });
         }
 
+        // CEK FILE
         if (!req.file) {
             return res.status(400).json({ 
                 success: false, 
@@ -66,41 +57,38 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
             });
         }
 
-        const fileBuffer = fs.readFileSync(req.file.path);
-        const fileName = req.file.originalname;
-
-        // Upload ke Roblox Open Cloud
+        // ==========================================
+        // KIRIM KE ROBLOX OPEN CLOUD
+        // ==========================================
         const form = new FormData();
-        form.append('file', fileBuffer, {
-            filename: fileName,
+        form.append('file', req.file.buffer, {
+            filename: req.file.originalname,
             contentType: req.file.mimetype
         });
 
-        const uploadUrl = `https://apis.roblox.com/assets/v1/assets/upload`;
+        const uploadUrl = 'https://apis.roblox.com/assets/v1/assets/upload';
 
         const response = await axios.post(uploadUrl, form, {
             headers: {
                 ...form.getHeaders(),
                 'x-api-key': apiKey,
                 'x-user-id': userId
-            }
+            },
+            timeout: 30000
         });
 
-        fs.unlinkSync(req.file.path);
-
+        // RESPON SUKSES
         res.json({
             success: true,
             assetId: response.data.assetId,
             url: `rbxassetid://${response.data.assetId}`,
-            name: fileName,
+            name: req.file.originalname,
             size: req.file.size
         });
 
     } catch (error) {
-        if (req.file && fs.existsSync(req.file.path)) {
-            fs.unlinkSync(req.file.path);
-        }
-
+        console.error('Upload error:', error.response?.data || error.message);
+        
         res.status(500).json({
             success: false,
             error: error.response?.data?.message || error.message || 'Gagal upload'
@@ -113,7 +101,7 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
 // ==========================================
 app.post('/api/generate-script', (req, res) => {
     try {
-        const { musicId, volume, loop, useAC6 } = req.body;
+        const { musicId, volume = 1, loop = true, useAC6 = false } = req.body;
 
         if (!musicId) {
             return res.status(400).json({ 
@@ -125,52 +113,26 @@ app.post('/api/generate-script', (req, res) => {
         let script;
 
         if (useAC6) {
-            script = `-- ==========================================
--- SIRLION AC6 MUSIC SPOOF
--- ==========================================
-
+            script = `-- AC6 Music Spoof
 local function playServerMusic(musicId, volume, pitch, loop)
-    volume = volume or ${volume || 1}
+    volume = volume or ${volume}
     pitch = pitch or 1
-    loop = loop or ${loop || true}
-    
-    local args = {
-        [1] = "newSound",
-        [2] = "SpoofedMusic",
-        [3] = workspace,
-        [4] = "rbxassetid://" .. musicId,
-        [5] = pitch,
-        [6] = volume,
-        [7] = loop
-    }
-    
+    loop = loop or ${loop}
+    local args = {[1]="newSound",[2]="SpoofedMusic",[3]=workspace,[4]="rbxassetid://"..musicId,[5]=pitch,[6]=volume,[7]=loop}
     game:GetService("ReplicatedStorage"):WaitForChild("AC6_FE_Sounds"):FireServer(unpack(args))
     game:GetService("ReplicatedStorage"):WaitForChild("AC6_FE_Sounds"):FireServer("playSound", "SpoofedMusic")
-    
-    print("✅ Musik diputar! ID: " .. musicId)
+    print("✅ Musik diputar! ID: "..musicId)
 end
-
 playServerMusic("${musicId}")`;
         } else {
-            script = `-- ==========================================
--- SIRLION SIMPLE AUDIO SPOOF
--- ==========================================
-
-local function spoofAudio(musicId, parent)
-    parent = parent or workspace
-    local sound = Instance.new("Sound")
-    sound.SoundId = "rbxassetid://" .. musicId
-    sound.Volume = ${volume || 1}
-    sound.Pitch = 1
-    sound.Looped = ${loop || true}
-    sound.Parent = parent
-    sound:Play()
-    
-    print("✅ Audio diputar dari ID: " .. musicId)
-    return sound
-end
-
-spoofAudio("${musicId}")`;
+            script = `-- Simple Audio Spoof
+local sound = Instance.new("Sound")
+sound.SoundId = "rbxassetid://${musicId}"
+sound.Volume = ${volume}
+sound.Looped = ${loop}
+sound.Parent = workspace
+sound:Play()
+print("✅ Audio diputar! ID: ${musicId}")`;
         }
 
         res.json({
@@ -231,7 +193,10 @@ app.get('/api/asset/:id', async (req, res) => {
 
         const response = await axios.get(
             `https://apis.roblox.com/assets/v1/assets/${assetId}`,
-            { headers: { 'x-api-key': apiKey } }
+            { 
+                headers: { 'x-api-key': apiKey },
+                timeout: 10000
+            }
         );
 
         res.json({
@@ -255,18 +220,14 @@ app.get('/api/asset/:id', async (req, res) => {
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: '🔥 SirLion Spoof Music Running!', 
-        timestamp: new Date() 
+        timestamp: new Date(),
+        port: PORT
     });
 });
 
 // ==========================================
 // START SERVER
 // ==========================================
-app.listen(PORT, () => {
-    console.log(`
-🔥 SIRLION SPOOF MUSIC 🔥
-📡 Running on: http://localhost:${PORT}
-🔑 API Key: ${process.env.ROBLOX_API_KEY ? '✅ Set' : '❌ Not Set'}
-👤 User ID: ${process.env.ROBLOX_USER_ID ? '✅ Set' : '❌ Not Set'}
-    `);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🔥 SirLion Spoof Music running on port ${PORT}`);
 });
