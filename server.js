@@ -44,6 +44,30 @@ let FFMPEG_BIN = null;
   console.log(FFMPEG_BIN ? `🎬 ffmpeg OK: ${FFMPEG_BIN}` : '⚠️ ffmpeg TIDAK ADA — /api/convert nonaktif (frontend fallback render WAV)');
 })();
 
+// ============================================================
+// YT-DLP — deteksi sekali saat startup
+// ============================================================
+let YTDLP_BIN = null;
+(function detectYtdlp() {
+  const cands = [
+    path.join(__dirname, 'node_modules', 'yt-dlp-exec', 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp')
+  ];
+  for (const c of cands) {
+    try {
+      fs.accessSync(c, fs.constants.X_OK);
+      const r = spawnSync(c, ['--version'], { timeout: 10000 });
+      if (r.status === 0) { YTDLP_BIN = c; break; }
+    } catch { /* lanjut */ }
+  }
+  if (!YTDLP_BIN) {
+    try {
+      const r = spawnSync('yt-dlp', ['--version'], { timeout: 10000 });
+      if (r.status === 0) YTDLP_BIN = 'yt-dlp';
+    } catch { /* tidak ada system yt-dlp */ }
+  }
+  console.log(YTDLP_BIN ? `📺 yt-dlp OK: ${YTDLP_BIN}` : '⚠️ yt-dlp TIDAK ADA — /api/yt-* nonaktif (npm i yt-dlp-exec)');
+})();
+
 app.disable('x-powered-by');
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
@@ -234,9 +258,10 @@ async function fetchAssetMeta(assetId) {
 app.get('/api/health', (req, res) => {
   res.json({
     status: '🦁 SirLion Audio Studio running!',
-    version: '1.0.0',
+    version: '1.1.0',
     node: process.version,
     ffmpeg: FFMPEG_BIN ? true : false,
+    ytdlp: YTDLP_BIN ? true : false,
     timestamp: new Date().toISOString()
   });
 });
@@ -613,6 +638,173 @@ app.post('/api/diagnose-access', async (req, res) => {
     res.json({ success: true, steps, verdict });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message || 'Gagal diagnosa' });
+  }
+});
+
+// ============================================================
+// YOUTUBE — search + import audio (butuh yt-dlp + ffmpeg)
+// ============================================================
+function runYtdlp(args, { timeoutMs = 60000 } = {}) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(YTDLP_BIN, args, { timeout: timeoutMs });
+    let out = '', err = '';
+    p.stdout.on('data', (d) => {
+      out += d.toString();
+      if (out.length > 64 * 1024 * 1024) { p.kill(); reject(new Error('Respons yt-dlp kebesaran.')); }
+    });
+    p.stderr.on('data', (d) => { err += d.toString(); });
+    p.on('error', reject);
+    p.on('close', (code) => (code === 0 ? resolve({ out, err }) : reject(new Error(cleanYtError(err, code)))));
+  });
+}
+
+function cleanYtError(err, code) {
+  const t = String(err || '');
+  if (/Sign in to confirm.*not a bot|confirm you.*not a bot/i.test(t)) {
+    return 'YouTube meminta verifikasi bot / membatasi IP server ini. Tunggu beberapa saat, atau jalankan app di PC rumah (IP residensial biasanya lolos).';
+  }
+  if (/Private video|video is private/i.test(t)) return 'Video privat / tidak tersedia.';
+  if (/age|confirm your age|login required|log in to confirm/i.test(t)) return 'Video dibatasi umur / butuh login — tidak bisa diambil.';
+  if (/Video unavailable|removed|deleted|This video .* no longer/i.test(t)) return 'Video tidak tersedia / sudah dihapus.';
+  if (/Unsupported URL|not.*supported/i.test(t)) return 'Link bukan URL YouTube yang valid.';
+  if (/nsig|player response|Unable to extract/i.test(t)) return 'YouTube mengubah proteksinya — update yt-dlp (npm update yt-dlp-exec) lalu restart server.';
+  const lines = t.split('\n').filter((l) => /ERROR/i.test(l)).slice(-2).join(' ').trim();
+  return (lines || `yt-dlp exit ${code}`).replace(/^ERROR:\s*/i, '').slice(0, 300) || 'yt-dlp gagal.';
+}
+
+function runFfmpegBin(args, timeoutMs = 180000) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(FFMPEG_BIN, args, { timeout: timeoutMs });
+    let err = '';
+    p.stderr.on('data', (d) => { err += d.toString(); });
+    p.on('error', reject);
+    p.on('close', (code) => (code === 0 ? resolve(err) : reject(new Error(`ffmpeg exit ${code}: ${err.slice(-300)}`))));
+  });
+}
+
+function extractYoutubeId(raw) {
+  const s = String(raw || '').trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(s)) return s;
+  const m = s.match(/(?:youtube\.com\/(?:watch\?.*v=|shorts\/|live\/|embed\/|v\/)|youtu\.be\/|music\.youtube\.com\/watch\?.*v=)([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+function fmtDur(sec) {
+  sec = Math.max(0, Math.floor(sec || 0));
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+}
+
+function formatViews(n) {
+  n = Number(n) || 0;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)} jt`;
+  if (n >= 1e3) return `${Math.round(n / 1e3)} rb`;
+  return String(n);
+}
+
+// GET /api/yt-search?q=&limit= — cari lagu di YouTube (tanpa API key Google)
+app.get('/api/yt-search', async (req, res) => {
+  if (!YTDLP_BIN) {
+    return res.status(501).json({ success: false, needYtdlp: true, error: 'Server tanpa yt-dlp. Install: npm i yt-dlp-exec lalu restart.' });
+  }
+  const q = (req.query.q || '').trim();
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 8, 1), 15);
+  if (!q) return res.status(400).json({ success: false, error: 'Ketik judul lagu dulu!' });
+  try {
+    const { out } = await runYtdlp(
+      ['--flat-playlist', '--dump-single-json', '--no-warnings', '--socket-timeout', '20', `ytsearch${limit}:${q}`],
+      { timeoutMs: 60000 }
+    );
+    const j = JSON.parse(out);
+    const results = (j.entries || [])
+      .filter((e) => e && /^[a-zA-Z0-9_-]{11}$/.test(e.id || ''))
+      .slice(0, limit)
+      .map((e) => ({
+        id: e.id,
+        title: e.title || '(tanpa judul)',
+        channel: e.channel || e.uploader || '-',
+        duration: e.duration ? fmtDur(e.duration) : '?',
+        durationSec: e.duration || null,
+        views: e.view_count != null ? formatViews(e.view_count) : '',
+        url: `https://www.youtube.com/watch?v=${e.id}`,
+        thumb: `https://i.ytimg.com/vi/${e.id}/mqdefault.jpg`
+      }));
+    res.json({ success: true, q, results });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message || 'Gagal cari YouTube' });
+  }
+});
+
+// POST /api/yt-import { url | videoId } — download bestaudio → MP3 → binary
+app.post('/api/yt-import', async (req, res) => {
+  if (!YTDLP_BIN) {
+    return res.status(501).json({ success: false, needYtdlp: true, error: 'Server tanpa yt-dlp. Install: npm i yt-dlp-exec lalu restart.' });
+  }
+  if (!FFMPEG_BIN) {
+    return res.status(501).json({ success: false, error: 'Server tanpa ffmpeg (butuh untuk transcode). Install: npm i ffmpeg-static.' });
+  }
+  const vid = extractYoutubeId((req.body || {}).url || (req.body || {}).videoId);
+  if (!vid) {
+    return res.status(400).json({ success: false, error: 'Tempel link YouTube yang valid! (watch / youtu.be / shorts / music)' });
+  }
+  const tag = crypto.randomUUID();
+  const prefix = `sirlion-yt-${tag}`;
+  const outMp3 = path.join(os.tmpdir(), `${prefix}.mp3`);
+  const cleanup = () => {
+    try {
+      for (const f of fs.readdirSync(os.tmpdir())) {
+        if (f.startsWith(prefix)) { try { fs.unlinkSync(path.join(os.tmpdir(), f)); } catch { /* abaikan */ } }
+      }
+    } catch { /* abaikan */ }
+  };
+  try {
+    const watchUrl = `https://www.youtube.com/watch?v=${vid}`;
+
+    // 1) Info dulu — tolak cepat kalau live / >7 menit (aturan Roblox)
+    const { out } = await runYtdlp(
+      ['--dump-single-json', '--no-download', '--no-warnings', '--no-playlist', '--socket-timeout', '20', watchUrl],
+      { timeoutMs: 60000 }
+    );
+    const info = JSON.parse(out);
+    const title = info.title || `YouTube_${vid}`;
+    const uploader = info.uploader || info.channel || 'YouTube';
+    const dur = Number(info.duration) || 0;
+    if (info.is_live) {
+      return res.status(400).json({ success: false, error: 'Video LIVE / premiere tidak bisa diambil. Pakai video biasa.' });
+    }
+    if (dur > 7 * 60) {
+      return res.status(400).json({ success: false, error: `Durasi ${fmtDur(dur)} melebihi batas Roblox (7 menit). Cari versi pendek / potongan lagunya.` });
+    }
+
+    // 2) Download audio terbaik
+    await runYtdlp(
+      ['-f', 'bestaudio[ext=m4a]/bestaudio/best', '--no-playlist', '--no-warnings',
+       '--socket-timeout', '30', '--retries', '2', '-o', path.join(os.tmpdir(), `${prefix}.%(ext)s`), watchUrl],
+      { timeoutMs: 240000 }
+    );
+    const got = fs.readdirSync(os.tmpdir()).find((f) => f.startsWith(prefix + '.') && !f.endsWith('.mp3') && !f.endsWith('.part') && !f.endsWith('.ytdl'));
+    if (!got) throw new Error('File audio tidak ketemu setelah download. Coba lagi.');
+    const inPath = path.join(os.tmpdir(), got);
+
+    // 3) Transcode → MP3 192k (Roblox tidak terima m4a/webm/opus)
+    await runFfmpegBin(['-y', '-hide_banner', '-i', inPath, '-vn', '-map', '0:a:0?', '-ar', '44100', '-c:a', 'libmp3lame', '-b:a', '192k', '-f', 'mp3', outMp3]);
+    const buf = fs.readFileSync(outMp3);
+    if (buf.length < 1000) throw new Error('Hasil transcode kosong.');
+    if (buf.length > 20 * 1024 * 1024) throw new Error('Hasil audio >20 MB (batas Roblox).');
+
+    console.log(`📺 YT import OK: "${title}" (${fmtDur(dur)}, ${(buf.length / 1024 / 1024).toFixed(2)} MB)`);
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Length', buf.length);
+    res.setHeader('X-Import-Name', encodeURIComponent(String(title).slice(0, 50)));
+    res.setHeader('X-Import-Creator', encodeURIComponent(String(uploader).slice(0, 50)));
+    res.setHeader('X-Import-Format', 'mp3');
+    res.setHeader('X-Import-VideoId', vid);
+    if (dur) res.setHeader('X-Import-Duration', dur.toFixed(0));
+    res.send(buf);
+  } catch (error) {
+    console.error('❌ YT import error:', error.message);
+    res.status(500).json({ success: false, error: error.message || 'Gagal ambil YouTube' });
+  } finally {
+    cleanup();
   }
 });
 
