@@ -212,7 +212,8 @@ app.get('/api/asset-info/:id', async (req, res) => {
       assetTypeId: d.AssetTypeId,
       isAudio,
       creator: d.Creator && (d.Creator.Name || d.Creator.Id),
-      url: `rbxassetid://${id}`
+      url: `rbxassetid://${id}`,
+      storeUrl: `https://create.roblox.com/store/asset/${id}`
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message || 'Gagal mengambil info asset' });
