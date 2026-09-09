@@ -1,5 +1,8 @@
 // script.js - SirLion Spoof Music
+const API_BASE = window.location.origin;
+
 let uploadedFile = null;
+let lastSpoofedId = null;
 
 // ===== API KEY =====
 function saveApiKey() {
@@ -20,45 +23,14 @@ function saveApiKey() {
     status.textContent = '✅ API Key tersimpan!';
 }
 
-// ===== DROP ZONE =====
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
-
-dropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropZone.style.borderColor = '#f7971e';
-});
-
-dropZone.addEventListener('dragleave', () => {
-    dropZone.style.borderColor = 'rgba(255,255,255,0.2)';
-});
-
-dropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropZone.style.borderColor = 'rgba(255,255,255,0.2)';
-    if (e.dataTransfer.files.length > 0) {
-        handleFile(e.dataTransfer.files[0]);
-    }
-});
-
-fileInput.addEventListener('change', (e) => {
-    if (e.target.files.length > 0) {
-        handleFile(e.target.files[0]);
-    }
-});
-
-function handleFile(file) {
-    uploadedFile = file;
-    document.getElementById('fileName').textContent = file.name;
-    document.getElementById('fileSize').textContent = (file.size / 1024).toFixed(2) + ' KB';
-    document.getElementById('fileInfo').classList.remove('hidden');
-    document.getElementById('uploadResult').classList.add('hidden');
-}
-
-// ===== UPLOAD =====
-function uploadAudio() {
-    if (!uploadedFile) {
-        alert('Pilih file dulu!');
+// ===== SPOOF AUDIO =====
+function spoofAudio() {
+    const assetId = document.getElementById('spoofIdInput').value;
+    const result = document.getElementById('spoofResult');
+    const loading = document.getElementById('spoofLoading');
+    
+    if (!assetId) {
+        alert('Masukkan ID audio!');
         return;
     }
     
@@ -70,53 +42,49 @@ function uploadAudio() {
         return;
     }
     
-    const formData = new FormData();
-    formData.append('audio', uploadedFile);
+    // Show loading
+    loading.classList.remove('hidden');
+    result.classList.add('hidden');
     
-    const result = document.getElementById('uploadResult');
-    result.className = 'result';
-    result.innerHTML = '⏳ Uploading...';
-    result.classList.remove('hidden');
-    
-    fetch('/api/upload', {
+    fetch(`${API_BASE}/api/spoof`, {
         method: 'POST',
         headers: {
+            'Content-Type': 'application/json',
             'x-api-key': apiKey,
             'x-user-id': userId
         },
-        body: formData
+        body: JSON.stringify({ assetId })
     })
     .then(res => res.json())
     .then(data => {
+        loading.classList.add('hidden');
+        
         if (data.success) {
-            document.getElementById('uploadedId').textContent = data.assetId;
-            document.getElementById('uploadedUrl').textContent = data.url;
-            result.innerHTML = `
-                <p>✅ Upload Berhasil!</p>
-                <p>🎵 ID: <span id="uploadedId">${data.assetId}</span></p>
-                <p>🔗 URL: <span id="uploadedUrl">${data.url}</span></p>
-                <button onclick="copyUploadedId()">📋 Copy ID</button>
-                <button onclick="copyUploadedUrl()">📋 Copy URL</button>
-            `;
+            lastSpoofedId = data.newAssetId;
+            document.getElementById('originalId').textContent = data.originalAssetId;
+            document.getElementById('newId').textContent = data.newAssetId;
+            document.getElementById('newUrl').textContent = data.url;
             result.classList.remove('hidden');
+            
+            // Auto-fill script input
+            document.getElementById('scriptIdInput').value = data.newAssetId;
         } else {
-            result.innerHTML = `<p style="color: #f00;">❌ ${data.error}</p>`;
-            result.classList.remove('hidden');
+            alert('❌ Gagal: ' + data.error);
         }
     })
     .catch(err => {
-        result.innerHTML = `<p style="color: #f00;">❌ ${err.message}</p>`;
-        result.classList.remove('hidden');
+        loading.classList.add('hidden');
+        alert('❌ Error: ' + err.message);
     });
 }
 
-function copyUploadedId() {
-    const id = document.getElementById('uploadedId')?.textContent;
+function copyNewId() {
+    const id = document.getElementById('newId')?.textContent;
     if (id) { navigator.clipboard.writeText(id); alert('✅ ID: ' + id); }
 }
 
-function copyUploadedUrl() {
-    const url = document.getElementById('uploadedUrl')?.textContent;
+function copyNewUrl() {
+    const url = document.getElementById('newUrl')?.textContent;
     if (url) { navigator.clipboard.writeText(url); alert('✅ URL: ' + url); }
 }
 
@@ -134,7 +102,7 @@ function generateScript() {
     output.innerHTML = '<pre>⏳ Generating...</pre>';
     output.classList.remove('hidden');
     
-    fetch('/api/generate-script', {
+    fetch(`${API_BASE}/api/generate-script`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ musicId, volume, loop, useAC6 })
@@ -162,7 +130,7 @@ function copyScript() {
 function downloadScript() {
     const code = document.getElementById('scriptCode')?.textContent;
     if (code) {
-        fetch('/api/download-script', {
+        fetch(`${API_BASE}/api/download-script`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ script: code, filename: 'spoof.lua' })
@@ -195,7 +163,7 @@ function lookupAsset() {
     result.innerHTML = '⏳ Loading...';
     result.classList.remove('hidden');
     
-    fetch(`/api/asset/${id}`, {
+    fetch(`${API_BASE}/api/asset/${id}`, {
         headers: { 'x-api-key': apiKey || '' }
     })
     .then(res => res.json())
