@@ -19,17 +19,13 @@ const PORT = process.env.PORT || 3000;
 // ==========================================
 app.use(cors());
 app.use(express.json());
-
-// ==========================================
-// STATIC FILES (Frontend)
-// ==========================================
-app.use(express.static('public'));
+app.use(express.static('public'));  // ⬅️ INI BUAT NAMPILIN WEB!
 
 // ==========================================
 // UPLOAD CONFIG - PAKE MEMORY STORAGE!
 // ==========================================
 const upload = multer({
-    storage: multer.memoryStorage(),  // ⚠️ PAKE INI, BUKAN DISK!
+    storage: multer.memoryStorage(),  // ⬅️ INI YANG BENER BUAT RAILWAY!
     limits: { fileSize: 20 * 1024 * 1024 }
 });
 
@@ -41,7 +37,6 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
         const apiKey = req.headers['x-api-key'] || process.env.ROBLOX_API_KEY;
         const userId = req.headers['x-user-id'] || process.env.ROBLOX_USER_ID;
 
-        // CEK API KEY & USER ID
         if (!apiKey || !userId) {
             return res.status(400).json({ 
                 success: false, 
@@ -49,7 +44,6 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
             });
         }
 
-        // CEK FILE
         if (!req.file) {
             return res.status(400).json({ 
                 success: false, 
@@ -57,27 +51,26 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
             });
         }
 
-        // ==========================================
-        // KIRIM KE ROBLOX OPEN CLOUD
-        // ==========================================
+        // KIRIM KE ROBLOX
         const form = new FormData();
         form.append('file', req.file.buffer, {
             filename: req.file.originalname,
             contentType: req.file.mimetype
         });
 
-        const uploadUrl = 'https://apis.roblox.com/assets/v1/assets/upload';
+        const response = await axios.post(
+            'https://apis.roblox.com/assets/v1/assets/upload',
+            form,
+            {
+                headers: {
+                    ...form.getHeaders(),
+                    'x-api-key': apiKey,
+                    'x-user-id': userId
+                },
+                timeout: 30000
+            }
+        );
 
-        const response = await axios.post(uploadUrl, form, {
-            headers: {
-                ...form.getHeaders(),
-                'x-api-key': apiKey,
-                'x-user-id': userId
-            },
-            timeout: 30000
-        });
-
-        // RESPON SUKSES
         res.json({
             success: true,
             assetId: response.data.assetId,
@@ -88,7 +81,6 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
 
     } catch (error) {
         console.error('Upload error:', error.response?.data || error.message);
-        
         res.status(500).json({
             success: false,
             error: error.response?.data?.message || error.message || 'Gagal upload'
@@ -111,7 +103,6 @@ app.post('/api/generate-script', (req, res) => {
         }
 
         let script;
-
         if (useAC6) {
             script = `-- AC6 Music Spoof
 local function playServerMusic(musicId, volume, pitch, loop)
@@ -135,18 +126,10 @@ sound:Play()
 print("✅ Audio diputar! ID: ${musicId}")`;
         }
 
-        res.json({
-            success: true,
-            script: script,
-            musicId: musicId,
-            method: useAC6 ? 'AC6 Exploit' : 'Simple Spoof'
-        });
+        res.json({ success: true, script, musicId, method: useAC6 ? 'AC6 Exploit' : 'Simple Spoof' });
 
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
-        });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
@@ -156,23 +139,14 @@ print("✅ Audio diputar! ID: ${musicId}")`;
 app.post('/api/download-script', (req, res) => {
     try {
         const { script, filename } = req.body;
-
         if (!script) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Script diperlukan!' 
-            });
+            return res.status(400).json({ success: false, error: 'Script diperlukan!' });
         }
-
         res.setHeader('Content-Type', 'text/plain');
         res.setHeader('Content-Disposition', `attachment; filename="${filename || 'spoof.lua'}"`);
         res.send(script);
-
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
-        });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
@@ -185,18 +159,12 @@ app.get('/api/asset/:id', async (req, res) => {
         const apiKey = req.headers['x-api-key'] || process.env.ROBLOX_API_KEY;
 
         if (!apiKey) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'API Key diperlukan!' 
-            });
+            return res.status(400).json({ success: false, error: 'API Key diperlukan!' });
         }
 
         const response = await axios.get(
             `https://apis.roblox.com/assets/v1/assets/${assetId}`,
-            { 
-                headers: { 'x-api-key': apiKey },
-                timeout: 10000
-            }
+            { headers: { 'x-api-key': apiKey }, timeout: 10000 }
         );
 
         res.json({
