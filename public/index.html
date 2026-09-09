@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🦁 SirLion Spoof Music</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🦁 SirLion Spoof Music</h1>
+            <p>Spoof audio ke Roblox dengan API Key</p>
+        </header>
+
+        <main>
+            <!-- ===== SETUP API KEY ===== -->
+            <section>
+                <h2>🔑 Setup API Key</h2>
+                <div class="api-setup">
+                    <input type="password" id="apiKeyInput" placeholder="API Key Roblox">
+                    <input type="text" id="userIdInput" placeholder="User ID Roblox">
+                    <button onclick="saveApiKey()">💾 Simpan</button>
+                </div>
+                <p class="hint">Dapatkan API Key di: <a href="https://create.roblox.com/dashboard/credentials" target="_blank">create.roblox.com/dashboard/credentials</a></p>
+                <div id="apiStatus" class="status"></div>
+            </section>
+
+            <!-- ===== UPLOAD ===== -->
+            <section>
+                <h2>📤 Upload Audio</h2>
+                <div class="upload-area" id="dropZone">
+                    <p>📁 Drag & drop file audio disini</p>
+                    <p>atau</p>
+                    <button onclick="document.getElementById('fileInput').click()">🎵 Pilih File</button>
+                    <input type="file" id="fileInput" accept=".mp3,.wav,.ogg" hidden>
+                </div>
+                <div id="fileInfo" class="file-info hidden">
+                    <p>📁 <span id="fileName">file.mp3</span></p>
+                    <p>📦 <span id="fileSize">0 KB</span></p>
+                    <button onclick="uploadAudio()">🚀 Upload ke Roblox</button>
+                </div>
+                <div id="uploadResult" class="result hidden">
+                    <p>✅ Upload Berhasil!</p>
+                    <p>🎵 ID: <span id="uploadedId">-</span></p>
+                    <p>🔗 URL: <span id="uploadedUrl">-</span></p>
+                    <button onclick="copyUploadedId()">📋 Copy ID</button>
+                    <button onclick="copyUploadedUrl()">📋 Copy URL</button>
+                </div>
+            </section>
+
+            <!-- ===== GENERATE SCRIPT ===== -->
+            <section>
+                <h2>📜 Generate Script</h2>
+                <div class="script-generator">
+                    <input type="text" id="scriptIdInput" placeholder="Masukkan ID musik">
+                    <label>Volume: <span id="volumeValue">1.0</span></label>
+                    <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="1">
+                    <label><input type="checkbox" id="loopScriptCheck" checked> Loop</label>
+                    <label><input type="checkbox" id="useAC6Check"> AC6 Exploit (Server-Side)</label>
+                    <button onclick="generateScript()">📝 Generate Script</button>
+                </div>
+                <div id="scriptOutput" class="script-output hidden">
+                    <pre id="scriptCode"></pre>
+                    <button onclick="copyScript()">📋 Copy</button>
+                    <button onclick="downloadScript()">💾 Download</button>
+                </div>
+            </section>
+
+            <!-- ===== CEK ASSET ===== -->
+            <section>
+                <h2>🔍 Cek Asset</h2>
+                <div class="lookup-input">
+                    <input type="text" id="lookupId" placeholder="ID Asset">
+                    <button onclick="lookupAsset()">🔍 Cek</button>
+                </div>
+                <div id="lookupResult" class="result hidden"></div>
+            </section>
+        </main>
+
+        <footer>
+            <p>🦁 SirLion Spoof Music v2.0 | Built with ALIZZ</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
