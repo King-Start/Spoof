@@ -110,7 +110,7 @@
       <input type="text" id="spoofId" placeholder="ID / link store — cth: 1848350665" inputmode="numeric" onkeydown="if(event.key==='Enter')spoofAndPreview()" style="flex:2">
       <button id="spoofBtn" style="margin-top:0" onclick="spoofAndPreview()">🔍 Spoof &amp; Preview</button>
     </div>
-    <div id="spoofLoading" class="loading hidden"><div class="spinner"></div>Mengambil audio dari Roblox...</div>
+    <div id="spoofLoading" class="loading hidden"><div class="spinner"></div><span id="spoofLoadingText">Mengambil audio dari Roblox...</span></div>
     <div id="spoofError" class="result error hidden"></div>
     <p class="note">💡 Bisa tempel <b>link store langsung</b> (cth: <span style="color:#f7971e">create.roblox.com/store/asset/1848350665</span>) — ID-nya diambil otomatis, tinggal tukar-tukar link!<br>🔒 Kena ID privat? Otomatis ditawari <b>versi publik lagu yang sama</b>, <b>link MP3</b>, atau <b>file sendiri</b>.</p>
 
@@ -139,6 +139,7 @@
 
     <!-- ================= PANEL KONTROL AUDIO ================= -->
     <div id="studioPanel" class="hidden">
+      <div id="resolvedNotice" class="result warn hidden" style="margin:0 0 12px"></div>
       <div class="track-title">🎵 <span id="trackName">-</span></div>
       <div class="track-meta" id="trackMeta">-</div>
 
@@ -275,6 +276,20 @@ async function testKey(){
 // ============================================================
 // SPOOF & PREVIEW
 // ============================================================
+// Percobaan 1: ID-nya langsung. Gagal → percobaan 2 otomatis: salinan publik.
+async function downloadWithFallback(id){
+  const key=localStorage.getItem('key')||'';
+  let r=await fetch('/api/spoof-audio/'+id,{headers:key?{'x-api-key':key}:{}});
+  if(r.ok && !(r.headers.get('content-type')||'').includes('json')) return {r,smart:false};
+  document.getElementById('spoofLoadingText').textContent='🔒 ID privat — otomatis cari salinan publik yang bunyi...';
+  r=await fetch('/api/spoof-smart/'+id,{headers:key?{'x-api-key':key}:{}});
+  if(r.ok && !(r.headers.get('content-type')||'').includes('json')) return {r,smart:true};
+  const e=await r.json().catch(()=>({}));
+  const err=new Error(e.error||`Gagal download audio (${r.status})`);
+  err.code=e.code||'';
+  throw err;
+}
+
 async function spoofAndPreview(){
   // Terima ID polos ATAU link store / rbxassetid — ID-nya diekstrak otomatis
   const raw=document.getElementById('spoofId').value.trim();
@@ -290,6 +305,8 @@ async function spoofAndPreview(){
   errBox.classList.add('hidden');
   stopPlayback();
   document.getElementById('rescueBox').classList.add('hidden');
+  document.getElementById('resolvedNotice').classList.add('hidden');
+  document.getElementById('spoofLoadingText').textContent='Mengambil audio dari Roblox...';
 
   let infoName='', infoCreator='', infoUrl='';
   try{
@@ -299,25 +316,27 @@ async function spoofAndPreview(){
     if(info.assetTypeId!=null && info.assetTypeId!==3) throw new Error(`ID ini bukan audio (tipe ${info.assetTypeId}: "${info.name}"). Cari ID audio lain.`);
     infoName=info.name||''; infoCreator=info.creator||''; infoUrl=info.storeUrl||'';
 
-    // 2) Download binary audio (kirim API key kalau ada — membantu untuk audio milikmu)
-    const key=localStorage.getItem('key')||'';
-    const r=await fetch('/api/spoof-audio/'+id,{headers:key?{'x-api-key':key}:{}});
-    const ct=r.headers.get('content-type')||'';
-    if(!r.ok || ct.includes('json')){
-      const e=await r.json().catch(()=>({}));
-      const err=new Error(e.error||`Gagal download audio (${r.status})`);
-      err.code=e.code||'';
-      throw err;
-    }
+    // 2) Download: langsung, gagal → OTOMATIS coba salinan publik (spoof-smart)
+    const {r,smart}=await downloadWithFallback(id);
     const blob=await r.blob();
+    const getH=(n,fb)=>{try{return decodeURIComponent(r.headers.get(n)||'')||fb;}catch{return fb;}};
+    const toId=smart?(r.headers.get('X-Resolved-To')||id):id;
+    const fromId=smart?(r.headers.get('X-Resolved-From')||id):id;
 
     // 3) Masuk studio
     await loadIntoStudio({
       blob,
-      name:decodeURIComponent(r.headers.get('X-Audio-Name')||'')||infoName||('Audio_'+id),
-      creator:decodeURIComponent(r.headers.get('X-Audio-Creator')||'')||infoCreator||'-',
-      id, format:r.headers.get('X-Audio-Format')||'mp3', storeUrl:infoUrl
+      name:smart?getH('X-Resolved-Name',infoName):(getH('X-Audio-Name','')||infoName||('Audio_'+id)),
+      creator:smart?getH('X-Resolved-Artist',infoCreator):(getH('X-Audio-Creator','')||infoCreator||'-'),
+      id:toId,
+      format:smart?(r.headers.get('X-Resolved-Format')||'mp3'):(r.headers.get('X-Audio-Format')||'mp3'),
+      storeUrl:`https://create.roblox.com/store/asset/${toId}`
     });
+    if(smart&&fromId!==toId){
+      const n=document.getElementById('resolvedNotice');
+      n.innerHTML=`🔒 ID <b>${esc(fromId)}</b> privat → otomatis memakai salinan publik <b>${esc(toId)}</b>. Tetap bisa edit → convert → upload! ⚡`;
+      n.classList.remove('hidden');
+    }
   }catch(e){
     errBox.textContent='❌ '+e.message;
     errBox.classList.remove('hidden');
@@ -367,8 +386,12 @@ function showRescue(title,artist,id,errMsg){
   const box=document.getElementById('rescueBox');
   const isPrivate=/privat|not authorized|unauthorized/i.test(errMsg||'');
   document.getElementById('rescueTitle').textContent=isPrivate?`🔒 ID ${id} dikunci privat oleh pemiliknya`:`⚠️ Spoof ID ${id} gagal`;
+  const hasKey=!!localStorage.getItem('key');
   let html=esc(errMsg||'')+
-    (isPrivate?`<br>Roblox mengunci byte audionya — <b>tidak ada tool yang bisa mengambilnya tanpa izin pemilik</b>. Tapi lagunya tetap bisa masuk studio lewat 3 cara ini 👇`:`<br>Coba 3 cara ini 👇`);
+    (isPrivate?`<br>Roblox mengunci byte audionya untuk request tanpa hak akses.`:`<br>Coba langkah berikut 👇`);
+  if(hasKey) html+=`<br><button class="btn-secondary" style="width:auto;padding:8px 14px;margin-top:8px" onclick="diagnoseAccess('${esc(id)}')">🔓 Diagnosa kenapa key-mu ditolak</button>`;
+  else html+=`<br>💡 <b>Simpan API key-mu dulu</b> (🔑 Kredensial) — kalau link store bunyi di browser-mu, kemungkinan key-mu yang kurang izin, dan itu bisa diperbaiki!`;
+  html+=`<br><br>Lagunya tetap bisa masuk studio lewat 3 cara ini 👇`;
   if(artist && artist!=='-') html+=`<br><button class="btn-secondary" style="width:auto;padding:8px 14px;margin-top:8px" onclick="rescueSearch(${JSON.stringify(artist).replace(/"/g,'&quot;')})">🎤 Cari karya "${esc(artist)}" (siapa tahu ada yang publik)</button>`;
   document.getElementById('rescueMsg').innerHTML=html;
   if(title) document.getElementById('rescueKeyword').value=title;
@@ -410,6 +433,26 @@ function spoofThis(id){
   document.getElementById('rescueBox').classList.add('hidden');
   document.getElementById('spoofError').classList.add('hidden');
   spoofAndPreview();
+}
+
+async function diagnoseAccess(id){
+  const key=localStorage.getItem('key')||'';
+  if(!key) return alert('Simpan API key dulu (🔑 Kredensial)!');
+  const box=document.getElementById('rescueResults');
+  box.innerHTML='<p class="note">🔓 Mendiagnosa key-mu terhadap ID '+esc(id)+'...</p>';
+  try{
+    const r=await fetch('/api/diagnose-access',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'x-user-id':localStorage.getItem('uid')||''},
+      body:JSON.stringify({assetId:id})
+    });
+    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
+    if(!d.success){box.innerHTML=`<div class="result error">❌ ${esc(d.error||'Gagal diagnosa')}</div>`;return;}
+    box.innerHTML=`<div class="result ${d.verdict.ok?'':'warn'}" style="margin-top:8px">`+
+      d.steps.map(s=>`<div>${s.ok?'✅':'❌'} ${esc(s.msg)}</div>`).join('')+
+      `<div style="margin-top:8px;font-weight:bold">${d.verdict.ok?'🎉':'💡'} ${esc(d.verdict.msg)}</div></div>`+
+      (d.verdict.ok?`<button onclick="spoofThis('${esc(id)}')">🔄 SPOOF ULANG SEKARANG</button>`:'');
+  }catch(e){box.innerHTML=`<div class="result error">❌ ${esc(e.message)}</div>`;}
 }
 
 async function importFromUrl(){
