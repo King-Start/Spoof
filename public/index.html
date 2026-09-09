@@ -4,273 +4,303 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🦁 SirLion Spoof Music</title>
-    <link rel="stylesheet" href="style.css">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(135deg,#0a0a0a 0%,#1a1a2e 50%,#16213e 100%);color:#fff;min-height:100vh;padding:20px}
+        .container{max-width:900px;margin:0 auto}
+        header{text-align:center;padding:30px 0}
+        header h1{font-size:2.5rem;background:linear-gradient(45deg,#f7971e,#ffd200);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        header p{color:#aaa;margin-top:10px}
+        section{background:rgba(255,255,255,0.05);backdrop-filter:blur(10px);border-radius:15px;padding:25px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.1)}
+        section h2{margin-bottom:15px;color:#f7971e}
+        .spoof-input{display:flex;gap:10px;flex-wrap:wrap}
+        .spoof-input input{flex:1;padding:10px;border:1px solid rgba(255,255,255,0.2);border-radius:5px;background:rgba(255,255,255,0.05);color:#fff;min-width:200px}
+        .spoof-input button{padding:10px 25px;background:linear-gradient(45deg,#f7971e,#ffd200);border:none;border-radius:5px;font-weight:bold;cursor:pointer}
+        .result{padding:15px;background:rgba(0,255,0,0.1);border-radius:10px;margin-top:15px;border:1px solid rgba(0,255,0,0.2)}
+        .result .info{margin:5px 0;color:#aaa}
+        .result .info span{color:#fff}
+        .audio-preview{margin:15px 0;background:rgba(0,0,0,0.3);padding:15px;border-radius:10px}
+        .audio-preview audio{width:100%}
+        .upload-btn{padding:12px 30px;background:linear-gradient(45deg,#00b894,#00cec9);border:none;border-radius:5px;font-weight:bold;cursor:pointer;color:#fff;font-size:1.1rem}
+        .upload-btn:hover{opacity:0.8}
+        .upload-status{margin-top:10px;padding:10px;background:rgba(0,255,0,0.1);border-radius:5px}
+        .hidden{display:none!important}
+        .spinner{width:40px;height:40px;border:4px solid #333;border-top:4px solid #f7971e;border-radius:50%;margin:15px auto;animation:spin 1s linear infinite}
+        @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+        .api-setup{display:flex;gap:10px;flex-wrap:wrap}
+        .api-setup input{flex:1;padding:10px;border:1px solid rgba(255,255,255,0.2);border-radius:5px;background:rgba(255,255,255,0.05);color:#fff}
+        .api-setup button{padding:10px 25px;background:linear-gradient(45deg,#6c5ce7,#a29bfe);border:none;border-radius:5px;font-weight:bold;cursor:pointer;color:#fff}
+        .status{padding:8px;border-radius:5px;margin-top:10px;text-align:center}
+        .status.success{background:rgba(0,255,0,0.1);color:#0f0}
+        .status.error{background:rgba(255,0,0,0.1);color:#f00}
+        .script-generator input[type=text]{width:100%;padding:10px;border:1px solid rgba(255,255,255,0.2);border-radius:5px;background:rgba(255,255,255,0.05);color:#fff;margin-bottom:10px}
+        .script-generator input[type=range]{width:200px;vertical-align:middle}
+        .script-generator label{display:inline-block;margin:5px 15px 5px 0;color:#ccc}
+        .script-generator button{padding:10px 25px;background:linear-gradient(45deg,#e17055,#d63031);border:none;border-radius:5px;font-weight:bold;cursor:pointer;color:#fff}
+        .script-output{margin-top:15px;padding:15px;background:rgba(0,0,0,0.5);border-radius:10px}
+        .script-output pre{background:#0a0a0a;padding:15px;border-radius:5px;font-size:12px;color:#00ff88;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-wrap:break-word}
+        .script-output button{margin-top:10px;padding:8px 20px;border:none;border-radius:5px;cursor:pointer;font-weight:bold}
+        .script-output button:first-of-type{background:#f7971e}
+        .script-output button:last-of-type{background:#00b894;color:#fff}
+        footer{text-align:center;padding:20px;color:#666;font-size:.8rem}
+        .size-badge{background:rgba(255,255,255,0.1);padding:2px 10px;border-radius:12px;font-size:.8rem}
+    </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🦁 SirLion Spoof Music</h1>
-            <p>Spoof audio ID orang lain → preview → upload instan!</p>
-        </header>
+<div class="container">
+    <header>
+        <h1>🦁 SirLion Spoof Music</h1>
+        <p>Spoof audio ID orang lain → preview → upload instan!</p>
+    </header>
 
-        <main>
-            <!-- SETUP API KEY -->
-            <section>
-                <h2>🔑 Setup API Key</h2>
-                <div class="api-setup">
-                    <input type="password" id="apiKeyInput" placeholder="API Key Roblox">
-                    <input type="text" id="userIdInput" placeholder="User ID Roblox">
-                    <button onclick="saveApiKey()">💾 Simpan</button>
+    <main>
+        <section>
+            <h2>🔑 Setup API Key</h2>
+            <div class="api-setup">
+                <input type="password" id="apiKeyInput" placeholder="API Key Roblox">
+                <input type="text" id="userIdInput" placeholder="User ID Roblox">
+                <button onclick="saveApiKey()">💾 Simpan</button>
+            </div>
+            <p style="font-size:.7rem;color:#666;margin-top:8px">Dapatkan API Key di: <a href="https://create.roblox.com/dashboard/credentials" target="_blank" style="color:#f7971e">create.roblox.com/dashboard/credentials</a></p>
+            <div id="apiStatus" class="status"></div>
+        </section>
+
+        <section>
+            <h2>🎵 Spoof & Preview Audio</h2>
+            <div class="spoof-input">
+                <input type="text" id="spoofIdInput" placeholder="Masukkan ID audio orang lain">
+                <button onclick="spoofAudio()">🔍 Cari & Preview</button>
+            </div>
+            <div id="spoofLoading" class="hidden" style="text-align:center;padding:20px">
+                <p>⏳ Mendownload audio...</p>
+                <div class="spinner"></div>
+            </div>
+            <div id="spoofResult" class="result hidden">
+                <p>🎵 <strong id="audioName">-</strong></p>
+                <div class="info">📁 Nama file: <span id="audioFilename">-</span></div>
+                <div class="info">📦 Ukuran: <span id="audioSize">-</span></div>
+                <div class="info">🆔 ID Asli: <span id="originalIdDisplay">-</span></div>
+                <div class="audio-preview">
+                    <audio id="audioPlayer" controls></audio>
                 </div>
-                <p class="hint">Dapatkan API Key di: <a href="https://create.roblox.com/dashboard/credentials" target="_blank">create.roblox.com/dashboard/credentials</a></p>
-                <div id="apiStatus" class="status"></div>
-            </section>
+                <button onclick="uploadToRoblox()" class="upload-btn">🚀 Upload ke Roblox (INSTANT!)</button>
+                <div id="uploadResult" class="upload-status hidden"></div>
+            </div>
+        </section>
 
-            <!-- SPOOF + PREVIEW -->
-            <section>
-                <h2>🎵 Spoof & Preview Audio</h2>
-                <div class="spoof-input">
-                    <input type="text" id="spoofIdInput" placeholder="Masukkan ID audio orang lain">
-                    <button onclick="spoofAudio()">🔍 Cari & Preview</button>
-                </div>
-                <div id="spoofLoading" class="loading hidden">
-                    <p>⏳ Mendownload audio...</p>
-                    <div class="spinner"></div>
-                </div>
-                <div id="spoofResult" class="result hidden">
-                    <p>✅ Audio ditemukan!</p>
-                    <p>📁 Nama: <span id="audioFilename">-</span></p>
-                    <p>📦 Ukuran: <span id="audioSize">-</span></p>
-                    <div class="audio-preview">
-                        <audio id="audioPlayer" controls></audio>
-                    </div>
-                    <button onclick="uploadToRoblox()" class="upload-btn">🚀 Upload ke Roblox (INSTANT!)</button>
-                    <div id="uploadResult" class="upload-status hidden">
-                        <p>✅ Upload berhasil!</p>
-                        <p>🆕 ID Baru: <span id="newAssetId">-</span></p>
-                        <p>🔗 URL: <span id="newAssetUrl">-</span></p>
-                        <button onclick="copyNewId()">📋 Copy ID</button>
-                    </div>
-                </div>
-            </section>
+        <section>
+            <h2>📜 Generate Script</h2>
+            <div class="script-generator">
+                <input type="text" id="scriptIdInput" placeholder="Masukkan ID musik (hasil spoof)">
+                <label>Volume: <span id="volumeValue">1.0</span></label>
+                <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="1">
+                <label><input type="checkbox" id="loopScriptCheck" checked> Loop</label>
+                <label><input type="checkbox" id="useAC6Check"> AC6 Exploit (Server-Side)</label>
+                <button onclick="generateScript()">📝 Generate Script</button>
+            </div>
+            <div id="scriptOutput" class="script-output hidden">
+                <pre id="scriptCode"></pre>
+                <button onclick="copyScript()">📋 Copy</button>
+                <button onclick="downloadScript()">💾 Download</button>
+            </div>
+        </section>
+    </main>
 
-            <!-- GENERATE SCRIPT -->
-            <section>
-                <h2>📜 Generate Script</h2>
-                <div class="script-generator">
-                    <input type="text" id="scriptIdInput" placeholder="Masukkan ID musik (hasil spoof)">
-                    <label>Volume: <span id="volumeValue">1.0</span></label>
-                    <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="1">
-                    <label><input type="checkbox" id="loopScriptCheck" checked> Loop</label>
-                    <label><input type="checkbox" id="useAC6Check"> AC6 Exploit (Server-Side)</label>
-                    <button onclick="generateScript()">📝 Generate Script</button>
-                </div>
-                <div id="scriptOutput" class="script-output hidden">
-                    <pre id="scriptCode"></pre>
-                    <button onclick="copyScript()">📋 Copy</button>
-                    <button onclick="downloadScript()">💾 Download</button>
-                </div>
-            </section>
-        </main>
+    <footer>🦁 SirLion Spoof Music v2.0 | Built with ALIZZ | ⚡ Instant Approve!</footer>
+</div>
 
-        <footer>
-            <p>🦁 SirLion Spoof Music v2.0 | Built with ALIZZ | ⚡ Instant Approve!</p>
-        </footer>
-    </div>
+<script>
+let currentAudioData = null;
+let currentAssetId = null;
+let currentName = '';
 
-    <script>
-        let currentAudioData = null;
-        let currentAssetId = null;
+// ===== API KEY =====
+function saveApiKey() {
+    const apiKey = document.getElementById('apiKeyInput').value;
+    const userId = document.getElementById('userIdInput').value;
+    const status = document.getElementById('apiStatus');
+    if (!apiKey || !userId) {
+        status.className = 'status error';
+        status.textContent = '❌ API Key dan User ID wajib diisi!';
+        return;
+    }
+    localStorage.setItem('roblox_api_key', apiKey);
+    localStorage.setItem('roblox_user_id', userId);
+    status.className = 'status success';
+    status.textContent = '✅ API Key tersimpan!';
+}
 
-        // ===== API KEY =====
-        function saveApiKey() {
-            const apiKey = document.getElementById('apiKeyInput').value;
-            const userId = document.getElementById('userIdInput').value;
-            const status = document.getElementById('apiStatus');
-            if (!apiKey || !userId) {
-                status.className = 'status error';
-                status.textContent = '❌ API Key dan User ID wajib diisi!';
-                return;
-            }
-            localStorage.setItem('roblox_api_key', apiKey);
-            localStorage.setItem('roblox_user_id', userId);
-            status.className = 'status success';
-            status.textContent = '✅ API Key tersimpan!';
+// ===== SPOOF + PREVIEW =====
+function spoofAudio() {
+    const assetId = document.getElementById('spoofIdInput').value.trim();
+    const result = document.getElementById('spoofResult');
+    const loading = document.getElementById('spoofLoading');
+    const player = document.getElementById('audioPlayer');
+
+    if (!assetId) { alert('Masukkan ID audio!'); return; }
+
+    const apiKey = localStorage.getItem('roblox_api_key');
+    const userId = localStorage.getItem('roblox_user_id');
+    if (!apiKey || !userId) { alert('Simpan API Key dulu!'); return; }
+
+    loading.classList.remove('hidden');
+    result.classList.add('hidden');
+    player.pause();
+
+    fetch('/api/spoof', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'x-user-id': userId
+        },
+        body: JSON.stringify({ assetId })
+    })
+    .then(res => res.json())
+    .then(data => {
+        loading.classList.add('hidden');
+        if (data.success) {
+            currentAssetId = data.originalAssetId;
+            currentAudioData = data.audioDataUrl;
+            currentName = data.name || 'Audio';
+
+            document.getElementById('audioName').textContent = data.name || 'Audio_' + assetId;
+            document.getElementById('audioFilename').textContent = data.filename || 'audio.mp3';
+            document.getElementById('audioSize').textContent = data.sizeFormatted || (data.size / 1024 / 1024).toFixed(2) + ' MB';
+            document.getElementById('originalIdDisplay').textContent = assetId;
+            document.getElementById('uploadResult').classList.add('hidden');
+
+            player.src = data.audioDataUrl;
+            player.load();
+            result.classList.remove('hidden');
+        } else {
+            alert('❌ Gagal: ' + data.error);
         }
+    })
+    .catch(err => {
+        loading.classList.add('hidden');
+        alert('❌ Error: ' + err.message);
+    });
+}
 
-        // ===== SPOOF + PREVIEW =====
-        function spoofAudio() {
-            const assetId = document.getElementById('spoofIdInput').value.trim();
-            const result = document.getElementById('spoofResult');
-            const loading = document.getElementById('spoofLoading');
-            const player = document.getElementById('audioPlayer');
+// ===== UPLOAD =====
+function uploadToRoblox() {
+    if (!currentAudioData) { alert('Preview audio dulu!'); return; }
 
-            if (!assetId) { alert('Masukkan ID audio!'); return; }
+    const apiKey = localStorage.getItem('roblox_api_key');
+    const userId = localStorage.getItem('roblox_user_id');
+    if (!apiKey || !userId) { alert('Simpan API Key dulu!'); return; }
 
-            const apiKey = localStorage.getItem('roblox_api_key');
-            const userId = localStorage.getItem('roblox_user_id');
-            if (!apiKey || !userId) { alert('Simpan API Key dulu!'); return; }
+    const uploadStatus = document.getElementById('uploadResult');
+    uploadStatus.className = 'upload-status';
+    uploadStatus.innerHTML = '<p>⏳ Uploading ke Roblox...</p>';
+    uploadStatus.classList.remove('hidden');
 
-            loading.classList.remove('hidden');
-            result.classList.add('hidden');
-            player.pause();
-
-            fetch('/api/spoof', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': apiKey,
-                    'x-user-id': userId
-                },
-                body: JSON.stringify({ assetId })
-            })
-            .then(res => res.json())
-            .then(data => {
-                loading.classList.add('hidden');
-                if (data.success) {
-                    currentAssetId = data.originalAssetId;
-                    currentAudioData = data.audioDataUrl;
-
-                    document.getElementById('audioFilename').textContent = data.filename || 'audio.mp3';
-                    document.getElementById('audioSize').textContent = (data.size / 1024).toFixed(2) + ' KB';
-                    document.getElementById('uploadResult').classList.add('hidden');
-
-                    player.src = data.audioDataUrl;
-                    player.load();
-                    result.classList.remove('hidden');
-                } else {
-                    alert('❌ Gagal: ' + data.error);
-                }
-            })
-            .catch(err => {
-                loading.classList.add('hidden');
-                alert('❌ Error: ' + err.message);
-            });
+    fetch('/api/upload-to-roblox', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'x-user-id': userId
+        },
+        body: JSON.stringify({
+            assetId: currentAssetId,
+            audioDataUrl: currentAudioData,
+            filename: document.getElementById('audioFilename').textContent,
+            name: currentName
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('scriptIdInput').value = data.newAssetId;
+            uploadStatus.innerHTML = `
+                <p>✅ Upload berhasil! ⚡ INSTANT APPROVE!</p>
+                <p>🆔 ID Baru: <strong>${data.newAssetId}</strong></p>
+                <p>🔗 URL: ${data.url}</p>
+                <button onclick="copyNewId()" style="padding:5px 15px;background:#f7971e;border:none;border-radius:5px;cursor:pointer;font-weight:bold">📋 Copy ID</button>
+            `;
+        } else {
+            uploadStatus.innerHTML = `<p style="color: #f00;">❌ ${data.error}</p>`;
         }
+    })
+    .catch(err => {
+        uploadStatus.innerHTML = `<p style="color: #f00;">❌ ${err.message}</p>`;
+    });
+}
 
-        // ===== UPLOAD KE ROBLOX =====
-        function uploadToRoblox() {
-            if (!currentAudioData) {
-                alert('Preview audio dulu!');
-                return;
-            }
+function copyNewId() {
+    const id = document.getElementById('scriptIdInput').value;
+    if (id) { navigator.clipboard.writeText(id); alert('✅ ID: ' + id); }
+}
 
-            const apiKey = localStorage.getItem('roblox_api_key');
-            const userId = localStorage.getItem('roblox_user_id');
-            if (!apiKey || !userId) { alert('Simpan API Key dulu!'); return; }
+// ===== GENERATE SCRIPT =====
+function generateScript() {
+    const musicId = document.getElementById('scriptIdInput').value;
+    if (!musicId) { alert('Masukkan ID musik!'); return; }
+    const volume = document.getElementById('volumeSlider').value;
+    const loop = document.getElementById('loopScriptCheck').checked;
+    const useAC6 = document.getElementById('useAC6Check').checked;
+    const output = document.getElementById('scriptOutput');
+    output.className = 'script-output';
+    output.innerHTML = '<pre>⏳ Generating...</pre>';
+    output.classList.remove('hidden');
 
-            const uploadStatus = document.getElementById('uploadResult');
-            uploadStatus.className = 'upload-status';
-            uploadStatus.innerHTML = '<p>⏳ Uploading ke Roblox...</p>';
-            uploadStatus.classList.remove('hidden');
-
-            fetch('/api/upload-to-roblox', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': apiKey,
-                    'x-user-id': userId
-                },
-                body: JSON.stringify({
-                    assetId: currentAssetId,
-                    audioDataUrl: currentAudioData,
-                    filename: document.getElementById('audioFilename').textContent
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    document.getElementById('newAssetId').textContent = data.newAssetId;
-                    document.getElementById('newAssetUrl').textContent = data.url;
-                    document.getElementById('scriptIdInput').value = data.newAssetId;
-                    uploadStatus.innerHTML = `
-                        <p>✅ Upload berhasil! ⚡ INSTANT APPROVE!</p>
-                        <p>🆕 ID Baru: <span id="newAssetId">${data.newAssetId}</span></p>
-                        <p>🔗 URL: <span id="newAssetUrl">${data.url}</span></p>
-                        <button onclick="copyNewId()">📋 Copy ID</button>
-                    `;
-                    uploadStatus.classList.remove('hidden');
-                } else {
-                    uploadStatus.innerHTML = `<p style="color: #f00;">❌ ${data.error}</p>`;
-                }
-            })
-            .catch(err => {
-                uploadStatus.innerHTML = `<p style="color: #f00;">❌ ${err.message}</p>`;
-            });
+    fetch('/api/generate-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ musicId, volume, loop, useAC6 })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            output.innerHTML = `<pre id="scriptCode">${data.script}</pre>
+                <button onclick="copyScript()">📋 Copy</button>
+                <button onclick="downloadScript()">💾 Download</button>`;
+        } else {
+            output.innerHTML = `<pre style="color: #f00;">❌ ${data.error}</pre>`;
         }
+    })
+    .catch(err => {
+        output.innerHTML = `<pre style="color: #f00;">❌ ${err.message}</pre>`;
+    });
+}
 
-        function copyNewId() {
-            const id = document.getElementById('newAssetId')?.textContent;
-            if (id) { navigator.clipboard.writeText(id); alert('✅ ID: ' + id); }
-        }
+function copyScript() {
+    const code = document.getElementById('scriptCode')?.textContent;
+    if (code) { navigator.clipboard.writeText(code); alert('✅ Script di-copy!'); }
+}
 
-        // ===== GENERATE SCRIPT =====
-        function generateScript() {
-            const musicId = document.getElementById('scriptIdInput').value;
-            if (!musicId) { alert('Masukkan ID musik!'); return; }
-            const volume = document.getElementById('volumeSlider').value;
-            const loop = document.getElementById('loopScriptCheck').checked;
-            const useAC6 = document.getElementById('useAC6Check').checked;
-            const output = document.getElementById('scriptOutput');
-            output.className = 'script-output';
-            output.innerHTML = '<pre>⏳ Generating...</pre>';
-            output.classList.remove('hidden');
-
-            fetch('/api/generate-script', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ musicId, volume, loop, useAC6 })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    output.innerHTML = `<pre id="scriptCode">${data.script}</pre>
-                        <button onclick="copyScript()">📋 Copy</button>
-                        <button onclick="downloadScript()">💾 Download</button>`;
-                } else {
-                    output.innerHTML = `<pre style="color: #f00;">❌ ${data.error}</pre>`;
-                }
-            })
-            .catch(err => {
-                output.innerHTML = `<pre style="color: #f00;">❌ ${err.message}</pre>`;
-            });
-        }
-
-        function copyScript() {
-            const code = document.getElementById('scriptCode')?.textContent;
-            if (code) { navigator.clipboard.writeText(code); alert('✅ Script di-copy!'); }
-        }
-
-        function downloadScript() {
-            const code = document.getElementById('scriptCode')?.textContent;
-            if (code) {
-                fetch('/api/download-script', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ script: code, filename: 'spoof.lua' })
-                })
-                .then(res => res.blob())
-                .then(blob => {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'spoof_music.lua';
-                    a.click();
-                    URL.revokeObjectURL(url);
-                });
-            }
-        }
-
-        document.getElementById('volumeSlider').addEventListener('input', function() {
-            document.getElementById('volumeValue').textContent = this.value;
+function downloadScript() {
+    const code = document.getElementById('scriptCode')?.textContent;
+    if (code) {
+        fetch('/api/download-script', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ script: code, filename: 'spoof.lua' })
+        })
+        .then(res => res.blob())
+        .then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'spoof_music.lua';
+            a.click();
+            URL.revokeObjectURL(url);
         });
+    }
+}
 
-        document.addEventListener('DOMContentLoaded', () => {
-            const key = localStorage.getItem('roblox_api_key');
-            const uid = localStorage.getItem('roblox_user_id');
-            if (key) document.getElementById('apiKeyInput').value = key;
-            if (uid) document.getElementById('userIdInput').value = uid;
-        });
-    </script>
+document.getElementById('volumeSlider').addEventListener('input', function() {
+    document.getElementById('volumeValue').textContent = this.value;
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const key = localStorage.getItem('roblox_api_key');
+    const uid = localStorage.getItem('roblox_user_id');
+    if (key) document.getElementById('apiKeyInput').value = key;
+    if (uid) document.getElementById('userIdInput').value = uid;
+});
+</script>
 </body>
 </html>
