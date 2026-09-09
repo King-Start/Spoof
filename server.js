@@ -133,6 +133,120 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 });
 
 // ==========================================
+// ROUTE: UPLOAD ID (SPOOF) — download resmi via Open Cloud, lalu upload ulang
+// Izin sepenuhnya ditentukan Roblox: hanya audio milikmu / yang diizinkan
+// ke API key-mu yang bisa didownload (audio privat orang lain = 403).
+// ==========================================
+app.post('/api/spoof-upload', async (req, res) => {
+  try {
+    const { assetId } = req.body;
+    const apiKey = req.headers['x-api-key'] || process.env.ROBLOX_API_KEY;
+    const userId = req.headers['x-user-id'] || process.env.ROBLOX_USER_ID;
+    const groupId = req.headers['x-group-id'] || process.env.ROBLOX_GROUP_ID || null;
+
+    if (!apiKey || !userId) {
+      return res.status(400).json({ success: false, error: 'API Key dan User ID diperlukan!' });
+    }
+    if (!assetId || !/^\d+$/.test(String(assetId))) {
+      return res.status(400).json({ success: false, error: 'Asset ID tidak valid!' });
+    }
+
+    console.log(`🔄 Spoof-upload asset ID: ${assetId}`);
+
+    // STEP 1: ambil nama audio
+    let audioName = `Audio_${assetId}`;
+    try {
+      const info = await fetch(`https://economy.roblox.com/v2/assets/${assetId}/details`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+      });
+      if (info.ok) {
+        const j = await info.json();
+        if (j.Name) audioName = j.Name;
+      }
+    } catch {}
+
+    // STEP 2: download resmi via Open Cloud (izin ditentukan Roblox)
+    const dl = await fetch(`https://apis.roblox.com/assets/v1/assets/${assetId}:download`, {
+      headers: { 'x-api-key': apiKey }
+    });
+    if (!dl.ok) {
+      const msg = (dl.status === 401 || dl.status === 403)
+        ? `Roblox tidak mengizinkan download audio ini dengan API key-mu (status ${dl.status}). Hanya audio milikmu / yang diizinkan yang bisa di-upload ulang — audio privat orang lain pasti ditolak.`
+        : dl.status === 404
+        ? 'Asset tidak ditemukan / bukan audio.'
+        : `Gagal download (${dl.status})`;
+      console.error(`❌ Download ditolak: ${dl.status}`);
+      return res.status(dl.status).json({ success: false, error: msg });
+    }
+
+    const buf = Buffer.from(await dl.arrayBuffer());
+    if (buf.length < 1000) {
+      return res.status(400).json({ success: false, error: 'File audio kosong / terlalu kecil.' });
+    }
+
+    const ctMap = {
+      'audio/mpeg': 'mp3', 'audio/mp3': 'mp3',
+      'audio/ogg': 'ogg',
+      'audio/wav': 'wav', 'audio/x-wav': 'wav',
+      'audio/flac': 'flac', 'audio/x-flac': 'flac'
+    };
+    let ct = dl.headers.get('content-type') || '';
+    let ext = ctMap[ct];
+    if (!ext) { ext = 'mp3'; ct = 'audio/mpeg'; }
+
+    console.log(`✅ Downloaded: ${(buf.length / 1024 / 1024).toFixed(2)} MB (${ext})`);
+
+    // STEP 3: upload ulang sebagai asset baru
+    const metadata = {
+      assetType: 'Audio',
+      displayName: String(audioName).slice(0, 50),
+      description: 'Re-upload via SirLion Uploader',
+      creationContext: {
+        creator: groupId ? { groupId: String(groupId) } : { userId: String(userId) }
+      }
+    };
+
+    const form = new FormData();
+    form.append('request', JSON.stringify(metadata));
+    form.append('fileContent', new Blob([buf], { type: ct }), `audio.${ext}`);
+
+    const up = await fetch('https://apis.roblox.com/assets/v1/assets', {
+      method: 'POST',
+      headers: { 'x-api-key': apiKey },
+      body: form
+    });
+    const ud = await up.json().catch(() => ({}));
+    if (!up.ok) {
+      console.error('❌ Upload gagal:', up.status, ud);
+      return res.status(up.status).json({
+        success: false,
+        error: ud.message || `Upload gagal (${up.status})`,
+        details: ud
+      });
+    }
+
+    let newAssetId = ud.assetId || (ud.path ? String(ud.path).split('/').pop() : null) || (ud.response && ud.response.assetId) || null;
+    if (!newAssetId) {
+      return res.status(500).json({ success: false, error: 'Upload sukses tapi ID tidak terbaca.', details: ud });
+    }
+
+    console.log(`✅ Spoof sukses: ${assetId} → ${newAssetId}`);
+    res.json({
+      success: true,
+      originalAssetId: String(assetId),
+      newAssetId,
+      name: audioName,
+      size: `${(buf.length / 1024 / 1024).toFixed(2)} MB`,
+      format: ext.toUpperCase(),
+      url: `rbxassetid://${newAssetId}`
+    });
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+    res.status(500).json({ success: false, error: error.message || 'Gagal spoof & upload' });
+  }
+});
+
+// ==========================================
 // ROUTE: STREAM AUDIO UNTUK PLAY LANGSUNG DI WEB
 // Open Cloud download API (resmi) — butuh API key; pasti bisa untuk audio milikmu
 // ==========================================
