@@ -107,11 +107,35 @@
   <section>
     <h2>🔍 Spoof ID <span class="badge">core feature</span></h2>
     <div class="row">
-      <input type="text" id="spoofId" placeholder="ID audio — cth: 140709876805704" inputmode="numeric" onkeydown="if(event.key==='Enter')spoofAndPreview()" style="flex:2">
+      <input type="text" id="spoofId" placeholder="ID / link store — cth: 1848350665" inputmode="numeric" onkeydown="if(event.key==='Enter')spoofAndPreview()" style="flex:2">
       <button id="spoofBtn" style="margin-top:0" onclick="spoofAndPreview()">🔍 Spoof &amp; Preview</button>
     </div>
     <div id="spoofLoading" class="loading hidden"><div class="spinner"></div>Mengambil audio dari Roblox...</div>
     <div id="spoofError" class="result error hidden"></div>
+    <p class="note">💡 Bisa tempel <b>link store langsung</b> (cth: <span style="color:#f7971e">create.roblox.com/store/asset/1848350665</span>) — ID-nya diambil otomatis, tinggal tukar-tukar link!<br>🔒 Kena ID privat? Otomatis ditawari <b>versi publik lagu yang sama</b>, <b>link MP3</b>, atau <b>file sendiri</b>.</p>
+
+    <!-- ================= PANEL PENYELAMAT ================= -->
+    <div id="rescueBox" class="hidden">
+      <div id="rescueTitle">🔒 ID ini dikunci privat</div>
+      <div id="rescueMsg"></div>
+      <label>1️⃣ Cari versi publik lagu yang sama</label>
+      <div class="row">
+        <input type="text" id="rescueKeyword" placeholder="Judul lagu" onkeydown="if(event.key==='Enter')rescueSearch()" style="flex:2">
+        <button id="rescueSearchBtn" style="margin-top:0" onclick="rescueSearch()">🔎 Cari</button>
+      </div>
+      <div id="rescueResults"></div>
+      <div class="orline">— atau —</div>
+      <label>2️⃣ Tempel link file audio langsung (.mp3 / .ogg / .wav)</label>
+      <div class="row">
+        <input type="text" id="importUrl" placeholder="https://.../lagu.mp3" onkeydown="if(event.key==='Enter')importFromUrl()" style="flex:2">
+        <button id="importUrlBtn" style="margin-top:0" onclick="importFromUrl()">🔗 Ambil</button>
+      </div>
+      <div class="orline">— atau —</div>
+      <label>3️⃣ Pakai file dari HP/komputermu</label>
+      <button class="btn-secondary" style="margin-top:0" onclick="document.getElementById('ownFile').click()">📁 Upload File Sendiri</button>
+      <input type="file" id="ownFile" accept=".mp3,.ogg,.wav,.flac,audio/*" class="hidden">
+      <div id="rescueLoading" class="loading hidden"><div class="spinner"></div><span id="rescueLoadingText">Memproses...</span></div>
+    </div>
 
     <!-- ================= PANEL KONTROL AUDIO ================= -->
     <div id="studioPanel" class="hidden">
@@ -252,9 +276,12 @@ async function testKey(){
 // SPOOF & PREVIEW
 // ============================================================
 async function spoofAndPreview(){
-  const id=document.getElementById('spoofId').value.trim();
-  if(!id) return alert('Masukkan ID audio!');
-  if(!/^\d+$/.test(id)) return alert('ID harus angka!');
+  // Terima ID polos ATAU link store / rbxassetid — ID-nya diekstrak otomatis
+  const raw=document.getElementById('spoofId').value.trim();
+  const found=raw.match(/\d{5,}/);
+  if(!found) return alert('Masukkan ID audio, atau tempel link store-nya! (cth: create.roblox.com/store/asset/1848350665)');
+  const id=found[0];
+  document.getElementById('spoofId').value=id;
   const btn=document.getElementById('spoofBtn');
   btn.disabled=true;
   document.getElementById('spoofLoading').classList.remove('hidden');
@@ -262,12 +289,15 @@ async function spoofAndPreview(){
   const errBox=document.getElementById('spoofError');
   errBox.classList.add('hidden');
   stopPlayback();
+  document.getElementById('rescueBox').classList.add('hidden');
 
+  let infoName='', infoCreator='', infoUrl='';
   try{
     // 1) Info + validasi: harus audio
     const info=await (await fetch('/api/spoof-info/'+id)).json().catch(()=>({success:false,error:'Server tidak merespons'}));
     if(!info.success) throw new Error(info.error||'Gagal ambil info');
     if(info.assetTypeId!=null && info.assetTypeId!==3) throw new Error(`ID ini bukan audio (tipe ${info.assetTypeId}: "${info.name}"). Cari ID audio lain.`);
+    infoName=info.name||''; infoCreator=info.creator||''; infoUrl=info.storeUrl||'';
 
     // 2) Download binary audio (kirim API key kalau ada — membantu untuk audio milikmu)
     const key=localStorage.getItem('key')||'';
@@ -275,48 +305,152 @@ async function spoofAndPreview(){
     const ct=r.headers.get('content-type')||'';
     if(!r.ok || ct.includes('json')){
       const e=await r.json().catch(()=>({}));
-      throw new Error(e.error||`Gagal download audio (${r.status})`);
+      const err=new Error(e.error||`Gagal download audio (${r.status})`);
+      err.code=e.code||'';
+      throw err;
     }
     const blob=await r.blob();
 
-    // 3) Decode ke Web Audio
-    AC = AC || new (window.AudioContext||window.webkitAudioContext)();
-    if(AC.state==='suspended') await AC.resume();
-    const ab=await blob.arrayBuffer();
-    audioBuf=await AC.decodeAudioData(ab);
-
-    spoofMeta={
-      id,
-      name:decodeURIComponent(r.headers.get('X-Audio-Name')||'')||info.name||('Audio_'+id),
-      creator:decodeURIComponent(r.headers.get('X-Audio-Creator')||'')||info.creator||'-',
-      format:(r.headers.get('X-Audio-Format')||'mp3').toLowerCase(),
-      size:blob.size,
-      originalBlob:blob,
-      storeUrl:info.storeUrl
-    };
-
-    // 4) Tampilkan panel
-    document.getElementById('trackName').textContent=spoofMeta.name;
-    document.getElementById('trackMeta').innerHTML=
-      `⏱ Durasi: <b>${fmtTime(audioBuf.duration)}</b> · 📦 ${(blob.size/1024/1024).toFixed(2)} MB ${spoofMeta.format.toUpperCase()} · 👤 ${esc(spoofMeta.creator)} · 🆔 ${id}<br>`+
-      `<a href="${spoofMeta.storeUrl}" target="_blank" rel="noopener">▶ Lihat di Creator Store</a>`;
-    document.getElementById('timeTotal').textContent=fmtTime(audioBuf.duration);
-    document.getElementById('scriptId').value=id;
-    resetSliders();
-    converted={blob:null,format:null,key:null};
-    document.getElementById('dlConverted').classList.add('hidden');
-    document.getElementById('convertStatus').innerHTML=`Format output: <b>${outFormat.toUpperCase()}</b>. Convert me-render speed/pitch/volume + format.`;
-    document.getElementById('uploadResult').classList.add('hidden');
-    document.getElementById('studioPanel').classList.remove('hidden');
-    document.getElementById('studioPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
+    // 3) Masuk studio
+    await loadIntoStudio({
+      blob,
+      name:decodeURIComponent(r.headers.get('X-Audio-Name')||'')||infoName||('Audio_'+id),
+      creator:decodeURIComponent(r.headers.get('X-Audio-Creator')||'')||infoCreator||'-',
+      id, format:r.headers.get('X-Audio-Format')||'mp3', storeUrl:infoUrl
+    });
   }catch(e){
     errBox.textContent='❌ '+e.message;
     errBox.classList.remove('hidden');
+    showRescue(infoName,id,e.message); // ← tidak berhenti di "gagal": tawarkan 3 jalan keluar
   }finally{
     btn.disabled=false;
     document.getElementById('spoofLoading').classList.add('hidden');
   }
 }
+
+// ============================================================
+// MASUK STUDIO — satu pintu untuk SEMUA sumber (spoof/link/file)
+// ============================================================
+async function loadIntoStudio({blob,name,creator,id,format,storeUrl}){
+  AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+  if(AC.state==='suspended') await AC.resume();
+  const ab=await blob.arrayBuffer();
+  try{ audioBuf=await AC.decodeAudioData(ab); }
+  catch{ throw new Error('File tidak bisa di-decode sebagai audio. Coba sumber lain.'); }
+
+  spoofMeta={
+    id:id||'link', name:name||'Audio', creator:creator||'-',
+    format:(format||'mp3').toLowerCase(), size:blob.size,
+    originalBlob:blob, storeUrl:storeUrl||''
+  };
+  document.getElementById('trackName').textContent=spoofMeta.name;
+  document.getElementById('trackMeta').innerHTML=
+    `⏱ Durasi: <b>${fmtTime(audioBuf.duration)}</b> · 📦 ${(blob.size/1024/1024).toFixed(2)} MB ${spoofMeta.format.toUpperCase()} · 👤 ${esc(spoofMeta.creator)}`+
+    (id?` · 🆔 ${esc(id)}`:` · 🔗 sumber luar`)+
+    (storeUrl?`<br><a href="${storeUrl}" target="_blank" rel="noopener">▶ Lihat di Creator Store</a>`:'');
+  document.getElementById('timeTotal').textContent=fmtTime(audioBuf.duration);
+  if(id && /^\d+$/.test(id)) document.getElementById('scriptId').value=id;
+  resetSliders();
+  converted={blob:null,format:null,key:null};
+  document.getElementById('dlConverted').classList.add('hidden');
+  document.getElementById('convertStatus').innerHTML=`Format output: <b>${outFormat.toUpperCase()}</b>. Convert me-render speed/pitch/volume + format.`;
+  document.getElementById('uploadResult').classList.add('hidden');
+  document.getElementById('rescueBox').classList.add('hidden');
+  document.getElementById('studioPanel').classList.remove('hidden');
+  document.getElementById('studioPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ============================================================
+// PANEL PENYELAMAT — 3 jalan keluar saat ID privat/gagal
+// ============================================================
+function showRescue(title,artist,id,errMsg){
+  const box=document.getElementById('rescueBox');
+  const isPrivate=/privat|not authorized|unauthorized/i.test(errMsg||'');
+  document.getElementById('rescueTitle').textContent=isPrivate?`🔒 ID ${id} dikunci privat oleh pemiliknya`:`⚠️ Spoof ID ${id} gagal`;
+  let html=esc(errMsg||'')+
+    (isPrivate?`<br>Roblox mengunci byte audionya — <b>tidak ada tool yang bisa mengambilnya tanpa izin pemilik</b>. Tapi lagunya tetap bisa masuk studio lewat 3 cara ini 👇`:`<br>Coba 3 cara ini 👇`);
+  if(artist && artist!=='-') html+=`<br><button class="btn-secondary" style="width:auto;padding:8px 14px;margin-top:8px" onclick="rescueSearch(${JSON.stringify(artist).replace(/"/g,'&quot;')})">🎤 Cari karya "${esc(artist)}" (siapa tahu ada yang publik)</button>`;
+  document.getElementById('rescueMsg').innerHTML=html;
+  if(title) document.getElementById('rescueKeyword').value=title;
+  document.getElementById('rescueResults').innerHTML='';
+  box.classList.remove('hidden');
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
+  if(title) rescueSearch(title); // langsung carikan versi publiknya
+}
+
+async function rescueSearch(preset){
+  const kw=((preset!==undefined?preset:document.getElementById('rescueKeyword').value)||'').trim();
+  if(!kw) return alert('Ketik judul lagu!');
+  document.getElementById('rescueKeyword').value=kw;
+  const btn=document.getElementById('rescueSearchBtn');
+  btn.disabled=true;
+  const box=document.getElementById('rescueResults');
+  box.innerHTML='<p class="note">🔎 Mencari salinan publik...</p>';
+  try{
+    const r=await fetch('/api/search-audio?keyword='+encodeURIComponent(kw)+'&limit=8');
+    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
+    if(!d.success){box.innerHTML=`<div class="result error">❌ ${esc(d.error||'Gagal mencari')}</div>`;return;}
+    const results=Array.isArray(d.results)?d.results:[];
+    if(!results.length){box.innerHTML=`<div class="result warn">😐 Tidak ada salinan publik untuk "${esc(kw)}". Coba kata kunci lain / link / file.</div>`;return;}
+    box.innerHTML=`<p class="note">Ditemukan ${d.total} — klik ⚡ Spoof pada salah satu (yang publik langsung masuk studio):</p>`+
+      results.map(x=>`
+        <div class="sr-row">
+          <div class="sr-info">
+            <div class="sr-name">🎵 ${esc(x.name)}</div>
+            <div class="sr-meta">🎤 ${esc(x.artist)} · ⏱ ${esc(x.duration)} · ID: ${x.id}</div>
+          </div>
+          <button class="sr-use" onclick="spoofThis('${x.id}')">⚡ Spoof</button>
+        </div>`).join('');
+  }catch(e){box.innerHTML=`<div class="result error">❌ ${esc(e.message)}</div>`;}
+  finally{btn.disabled=false;}
+}
+
+function spoofThis(id){
+  document.getElementById('spoofId').value=id;
+  document.getElementById('rescueBox').classList.add('hidden');
+  document.getElementById('spoofError').classList.add('hidden');
+  spoofAndPreview();
+}
+
+async function importFromUrl(){
+  const url=document.getElementById('importUrl').value.trim();
+  if(!url) return alert('Tempel link audio dulu!');
+  if(!/^https?:\/\//i.test(url)) return alert('Link harus diawali http(s)://');
+  document.getElementById('rescueLoading').classList.remove('hidden');
+  document.getElementById('rescueLoadingText').textContent='Mengambil audio dari link...';
+  try{
+    const r=await fetch('/api/import-url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const ct=r.headers.get('content-type')||'';
+    if(!r.ok||ct.includes('json')){
+      const e=await r.json().catch(()=>({}));
+      throw new Error(e.error||`Gagal ambil link (${r.status})`);
+    }
+    const blob=await r.blob();
+    await loadIntoStudio({
+      blob,
+      name:decodeURIComponent(r.headers.get('X-Import-Name')||'')||'Audio dari link',
+      creator:'link langsung', id:null,
+      format:r.headers.get('X-Import-Format')||'mp3', storeUrl:''
+    });
+  }catch(e){alert('❌ '+e.message);}
+  finally{document.getElementById('rescueLoading').classList.add('hidden');}
+}
+
+document.getElementById('ownFile').addEventListener('change',async e=>{
+  const f=e.target.files[0];
+  e.target.value='';
+  if(!f) return;
+  const ok=/\.(mp3|ogg|wav|flac)$/i.test(f.name)||/^audio\//.test(f.type)||f.type==='application/ogg';
+  if(!ok) return alert('File harus MP3, OGG, WAV, atau FLAC!');
+  if(f.size>25*1024*1024) return alert('Maksimal 25 MB!');
+  document.getElementById('rescueLoading').classList.remove('hidden');
+  document.getElementById('rescueLoadingText').textContent='Memuat file...';
+  try{
+    const m=f.name.toLowerCase().match(/\.([a-z0-9]+)$/);
+    await loadIntoStudio({blob:f,name:f.name.replace(/\.[^.]+$/,'').slice(0,50)||'File sendiri',creator:'file sendiri',id:null,format:(m&&m[1])||'mp3',storeUrl:''});
+  }catch(err){alert('❌ '+err.message);}
+  finally{document.getElementById('rescueLoading').classList.add('hidden');}
+});
 
 // ============================================================
 // ENGINE PREVIEW (Web Audio API)
