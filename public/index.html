@@ -10,7 +10,7 @@
     <div class="container">
         <header>
             <h1>🦁 SirLion Spoof Music</h1>
-            <p>Spoof audio ke Roblox dengan API Key</p>
+            <p>Spoof audio ID orang lain → jadi milik lo!</p>
         </header>
 
         <main>
@@ -26,26 +26,24 @@
                 <div id="apiStatus" class="status"></div>
             </section>
 
-            <!-- ===== UPLOAD ===== -->
+            <!-- ===== SPOOF AUDIO ===== -->
             <section>
-                <h2>📤 Upload Audio</h2>
-                <div class="upload-area" id="dropZone">
-                    <p>📁 Drag & drop file audio disini</p>
-                    <p>atau</p>
-                    <button onclick="document.getElementById('fileInput').click()">🎵 Pilih File</button>
-                    <input type="file" id="fileInput" accept=".mp3,.wav,.ogg" hidden>
+                <h2>🎵 Spoof Audio</h2>
+                <div class="spoof-input">
+                    <input type="text" id="spoofIdInput" placeholder="Masukkan ID audio orang lain (contoh: 82057489648664)">
+                    <button onclick="spoofAudio()">🔄 Spoof & Upload</button>
                 </div>
-                <div id="fileInfo" class="file-info hidden">
-                    <p>📁 <span id="fileName">file.mp3</span></p>
-                    <p>📦 <span id="fileSize">0 KB</span></p>
-                    <button onclick="uploadAudio()">🚀 Upload ke Roblox</button>
+                <div id="spoofResult" class="result hidden">
+                    <p>✅ Spoof Berhasil!</p>
+                    <p>🔗 ID Asli: <span id="originalId">-</span></p>
+                    <p>🆕 ID Baru (Milik Lo): <span id="newId">-</span></p>
+                    <p>🔗 URL: <span id="newUrl">-</span></p>
+                    <button onclick="copyNewId()">📋 Copy ID Baru</button>
+                    <button onclick="copyNewUrl()">📋 Copy URL</button>
                 </div>
-                <div id="uploadResult" class="result hidden">
-                    <p>✅ Upload Berhasil!</p>
-                    <p>🎵 ID: <span id="uploadedId">-</span></p>
-                    <p>🔗 URL: <span id="uploadedUrl">-</span></p>
-                    <button onclick="copyUploadedId()">📋 Copy ID</button>
-                    <button onclick="copyUploadedUrl()">📋 Copy URL</button>
+                <div id="spoofLoading" class="loading hidden">
+                    <p>⏳ Mendownload audio dari ID asli...</p>
+                    <p>📤 Mengupload ulang ke Roblox...</p>
                 </div>
             </section>
 
@@ -53,7 +51,7 @@
             <section>
                 <h2>📜 Generate Script</h2>
                 <div class="script-generator">
-                    <input type="text" id="scriptIdInput" placeholder="Masukkan ID musik">
+                    <input type="text" id="scriptIdInput" placeholder="Masukkan ID musik (hasil spoof)">
                     <label>Volume: <span id="volumeValue">1.0</span></label>
                     <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="1">
                     <label><input type="checkbox" id="loopScriptCheck" checked> Loop</label>
