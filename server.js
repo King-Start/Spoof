@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const FormData = require('form-data');
+const { spawn } = require('child_process');
 require('dotenv').config();
 
 const app = express();
@@ -12,7 +13,35 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.static('public'));
 
 // ==========================================
-// ROUTE: SPOOF + PREVIEW AUDIO
+// AMBIL INFO AUDIO DARI ID
+// ==========================================
+async function getAudioInfo(assetId) {
+    try {
+        // Pake endpoint Roblox buat dapetin info asset
+        const url = `https://economy.roblox.com/v2/assets/${assetId}/details`;
+        const response = await axios.get(url);
+        const data = response.data;
+        return {
+            name: data.Name || `Audio_${assetId}`,
+            description: data.Description || '',
+            created: data.Created,
+            updated: data.Updated,
+            assetType: data.AssetTypeId,
+            isPublic: data.IsPublic,
+            price: data.PriceInRobux || 0
+        };
+    } catch (error) {
+        console.warn('⚠️ Gagal ambil info asset, pake default');
+        return {
+            name: `Audio_${assetId}`,
+            description: '',
+            assetType: 3
+        };
+    }
+}
+
+// ==========================================
+// ROUTE: SPOOF + PREVIEW + INFO
 // ==========================================
 app.post('/api/spoof', async (req, res) => {
     try {
@@ -31,37 +60,61 @@ app.post('/api/spoof', async (req, res) => {
         console.log(`🔄 Processing asset ID: ${assetId}`);
 
         // ==========================================
-        // STEP 1: DOWNLOAD AUDIO
+        // STEP 1: AMBIL INFO AUDIO
         // ==========================================
-        const audioUrl = `https://www.roblox.com/asset/?id=${assetId}`;
+        const info = await getAudioInfo(assetId);
+        console.log(`📝 Audio Name: ${info.name}`);
+
+        // ==========================================
+        // STEP 2: DOWNLOAD AUDIO ASLI
+        // ==========================================
+        // 🎯 PAKE ENDPOINT YANG BENAR!
+        const audioUrl = `https://assetdelivery.roblox.com/v1/asset?id=${assetId}`;
+        console.log(`📥 Downloading from: ${audioUrl}`);
+
         const audioResponse = await axios.get(audioUrl, {
             responseType: 'arraybuffer',
-            timeout: 30000
+            timeout: 60000,
+            headers: {
+                'User-Agent': 'Roblox/WinInet',
+                'Accept': 'application/octet-stream'
+            }
         });
 
         const audioBuffer = Buffer.from(audioResponse.data);
         const contentType = audioResponse.headers['content-type'] || 'audio/mpeg';
         const ext = contentType.includes('wav') ? 'wav' : 
                     contentType.includes('ogg') ? 'ogg' : 'mp3';
-        const filename = `spoofed_${assetId}.${ext}`;
+        const filename = `${info.name || 'spoofed'}_${assetId}.${ext}`;
 
-        // Convert ke base64 buat preview di frontend
+        // Cek ukuran (kalo 4KB berarti error)
+        if (audioBuffer.length < 10000) {
+            throw new Error('Audio file terlalu kecil (kemungkinan placeholder)');
+        }
+
+        console.log(`✅ Audio downloaded: ${filename} (${(audioBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
+
+        // ==========================================
+        // STEP 3: KONVERSI KE BASE64 (BUAT PREVIEW)
+        // ==========================================
         const audioBase64 = audioBuffer.toString('base64');
         const audioDataUrl = `data:${contentType};base64,${audioBase64}`;
 
-        console.log(`✅ Audio downloaded: ${filename} (${audioBuffer.length} bytes)`);
-
         // ==========================================
-        // STEP 2: KIRIM PREVIEW + DATA KE FRONTEND
+        // STEP 4: KIRIM HASIL KE FRONTEND
         // ==========================================
         res.json({
             success: true,
             originalAssetId: assetId,
             filename: filename,
-            audioDataUrl: audioDataUrl,  // ⭐ BUAT PREVIEW DI WEB!
-            contentType: contentType,
+            name: info.name,
+            description: info.description,
             size: audioBuffer.length,
-            message: `✅ Audio siap di-preview!`
+            sizeFormatted: `${(audioBuffer.length / 1024 / 1024).toFixed(2)} MB`,
+            audioDataUrl: audioDataUrl,  // ⭐ BUAT PREVIEW!
+            contentType: contentType,
+            assetType: info.assetType,
+            message: `✅ Audio "${info.name}" siap di-preview!`
         });
 
     } catch (error) {
@@ -74,11 +127,11 @@ app.post('/api/spoof', async (req, res) => {
 });
 
 // ==========================================
-// ROUTE: UPLOAD ULANG KE ROBLOX
+// ROUTE: UPLOAD KE ROBLOX
 // ==========================================
 app.post('/api/upload-to-roblox', async (req, res) => {
     try {
-        const { assetId, audioDataUrl, filename } = req.body;
+        const { audioDataUrl, filename, name, assetId } = req.body;
         const apiKey = req.headers['x-api-key'] || process.env.ROBLOX_API_KEY;
         const userId = req.headers['x-user-id'] || process.env.ROBLOX_USER_ID;
 
@@ -90,16 +143,14 @@ app.post('/api/upload-to-roblox', async (req, res) => {
             return res.status(400).json({ success: false, error: 'Audio data diperlukan!' });
         }
 
-        // Konversi base64 ke buffer
         const base64Data = audioDataUrl.split(',')[1];
         const audioBuffer = Buffer.from(base64Data, 'base64');
 
-        console.log(`📤 Uploading to Roblox: ${filename || 'audio.mp3'}`);
+        console.log(`📤 Uploading to Roblox: ${filename || 'audio.mp3'} (${(audioBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
 
-        // Upload ke Roblox
         const form = new FormData();
         form.append('file', audioBuffer, {
-            filename: filename || 'spoofed_audio.mp3',
+            filename: filename || `${name || 'spoofed'}.mp3`,
             contentType: 'audio/mpeg'
         });
 
@@ -112,7 +163,7 @@ app.post('/api/upload-to-roblox', async (req, res) => {
                     'x-api-key': apiKey,
                     'x-user-id': userId
                 },
-                timeout: 60000
+                timeout: 120000  // 2 menit timeout
             }
         );
 
@@ -124,7 +175,7 @@ app.post('/api/upload-to-roblox', async (req, res) => {
             originalAssetId: assetId,
             newAssetId: newAssetId,
             url: `rbxassetid://${newAssetId}`,
-            message: `✅ Berhasil upload ke Roblox! ID: ${newAssetId}`
+            message: `✅ Berhasil upload! ID: ${newAssetId}`
         });
 
     } catch (error) {
@@ -137,7 +188,7 @@ app.post('/api/upload-to-roblox', async (req, res) => {
 });
 
 // ==========================================
-// GENERATE SCRIPT
+// ROUTE: GENERATE SCRIPT
 // ==========================================
 app.post('/api/generate-script', (req, res) => {
     try {
@@ -175,7 +226,7 @@ print("✅ Audio ID: ${musicId}")`;
 });
 
 // ==========================================
-// DOWNLOAD SCRIPT
+// ROUTE: DOWNLOAD SCRIPT
 // ==========================================
 app.post('/api/download-script', (req, res) => {
     try {
@@ -186,25 +237,6 @@ app.post('/api/download-script', (req, res) => {
         res.send(script);
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// ==========================================
-// CEK ASSET
-// ==========================================
-app.get('/api/asset/:id', async (req, res) => {
-    try {
-        const assetId = req.params.id;
-        const apiKey = req.headers['x-api-key'] || process.env.ROBLOX_API_KEY;
-        if (!apiKey) return res.status(400).json({ success: false, error: 'API Key diperlukan!' });
-
-        const response = await axios.get(
-            `https://apis.roblox.com/assets/v1/assets/${assetId}`,
-            { headers: { 'x-api-key': apiKey }, timeout: 10000 }
-        );
-        res.json({ success: true, assetId, url: `rbxassetid://${assetId}`, data: response.data });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message || 'Asset tidak ditemukan' });
     }
 });
 
