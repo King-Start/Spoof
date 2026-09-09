@@ -1,12 +1,10 @@
 // ==========================================
-// SIRLION SPOOF MUSIC - FIXED FOR RAILWAY
+// SIRLION SPOOF MUSIC - REALTIME SPOOFER
 // ==========================================
 
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
 const axios = require('axios');
 const FormData = require('form-data');
 require('dotenv').config();
@@ -14,26 +12,16 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ==========================================
-// MIDDLEWARE
-// ==========================================
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));  // ⬅️ INI BUAT NAMPILIN WEB!
+app.use(express.static('public'));
 
 // ==========================================
-// UPLOAD CONFIG - PAKE MEMORY STORAGE!
+// ROUTE: SPOOF AUDIO DARI ID ORANG LAIN
 // ==========================================
-const upload = multer({
-    storage: multer.memoryStorage(),  // ⬅️ INI YANG BENER BUAT RAILWAY!
-    limits: { fileSize: 20 * 1024 * 1024 }
-});
-
-// ==========================================
-// ROUTE: UPLOAD AUDIO
-// ==========================================
-app.post('/api/upload', upload.single('audio'), async (req, res) => {
+app.post('/api/spoof', async (req, res) => {
     try {
+        const { assetId } = req.body;
         const apiKey = req.headers['x-api-key'] || process.env.ROBLOX_API_KEY;
         const userId = req.headers['x-user-id'] || process.env.ROBLOX_USER_ID;
 
@@ -44,52 +32,118 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
             });
         }
 
-        if (!req.file) {
+        if (!assetId) {
             return res.status(400).json({ 
                 success: false, 
-                error: 'File audio diperlukan!' 
+                error: 'Asset ID diperlukan!' 
             });
         }
 
-        // KIRIM KE ROBLOX
-        const form = new FormData();
-        form.append('file', req.file.buffer, {
-            filename: req.file.originalname,
-            contentType: req.file.mimetype
+        console.log(`🔄 Spoofing asset ID: ${assetId}`);
+
+        // ==========================================
+        // STEP 1: DOWNLOAD AUDIO DARI ID ORANG LAIN
+        // ==========================================
+        const audioUrl = `https://www.roblox.com/asset/?id=${assetId}`;
+        const audioResponse = await axios.get(audioUrl, {
+            responseType: 'arraybuffer',
+            timeout: 30000
         });
 
-        const response = await axios.post(
-            'https://apis.roblox.com/assets/v1/assets/upload',
-            form,
-            {
-                headers: {
-                    ...form.getHeaders(),
-                    'x-api-key': apiKey,
-                    'x-user-id': userId
-                },
-                timeout: 30000
-            }
-        );
+        const audioBuffer = Buffer.from(audioResponse.data);
+        const contentType = audioResponse.headers['content-type'] || 'audio/mpeg';
+        const extension = contentType.includes('wav') ? 'wav' : 
+                          contentType.includes('ogg') ? 'ogg' : 'mp3';
+        const filename = `spoofed_${assetId}.${extension}`;
 
+        console.log(`✅ Audio downloaded: ${filename} (${audioBuffer.length} bytes)`);
+
+        // ==========================================
+        // STEP 2: UPLOAD ULANG KE ROBLOX (PAKE API KEY LO)
+        // ==========================================
+        const form = new FormData();
+        form.append('file', audioBuffer, {
+            filename: filename,
+            contentType: contentType
+        });
+
+        const uploadUrl = 'https://apis.roblox.com/assets/v1/assets/upload';
+
+        const uploadResponse = await axios.post(uploadUrl, form, {
+            headers: {
+                ...form.getHeaders(),
+                'x-api-key': apiKey,
+                'x-user-id': userId
+            },
+            timeout: 60000
+        });
+
+        const newAssetId = uploadResponse.data.assetId;
+
+        console.log(`✅ Asset baru: ${newAssetId}`);
+
+        // ==========================================
+        // STEP 3: KIRIM HASIL KE FRONTEND
+        // ==========================================
         res.json({
             success: true,
-            assetId: response.data.assetId,
-            url: `rbxassetid://${response.data.assetId}`,
-            name: req.file.originalname,
-            size: req.file.size
+            originalAssetId: assetId,
+            newAssetId: newAssetId,
+            url: `rbxassetid://${newAssetId}`,
+            message: `✅ Berhasil! Audio ${assetId} → ${newAssetId}`
         });
 
     } catch (error) {
-        console.error('Upload error:', error.response?.data || error.message);
+        console.error('Spoof error:', error.response?.data || error.message);
         res.status(500).json({
             success: false,
-            error: error.response?.data?.message || error.message || 'Gagal upload'
+            error: error.response?.data?.message || error.message || 'Gagal spoof audio'
         });
     }
 });
 
 // ==========================================
-// ROUTE: GENERATE SCRIPT
+// ROUTE: CEK ASSET (BUAT VALIDASI ID)
+// ==========================================
+app.get('/api/asset/:id', async (req, res) => {
+    try {
+        const assetId = req.params.id;
+        const apiKey = req.headers['x-api-key'] || process.env.ROBLOX_API_KEY;
+
+        if (!apiKey) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'API Key diperlukan!' 
+            });
+        }
+
+        // Cek via Roblox Open Cloud
+        const response = await axios.get(
+            `https://apis.roblox.com/assets/v1/assets/${assetId}`,
+            { 
+                headers: { 'x-api-key': apiKey },
+                timeout: 10000
+            }
+        );
+
+        res.json({
+            success: true,
+            assetId: assetId,
+            exists: true,
+            url: `rbxassetid://${assetId}`,
+            data: response.data
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.response?.data?.message || error.message || 'Asset tidak ditemukan'
+        });
+    }
+});
+
+// ==========================================
+// ROUTE: GENERATE SCRIPT DARI ID BARU
 // ==========================================
 app.post('/api/generate-script', (req, res) => {
     try {
@@ -126,10 +180,18 @@ sound:Play()
 print("✅ Audio diputar! ID: ${musicId}")`;
         }
 
-        res.json({ success: true, script, musicId, method: useAC6 ? 'AC6 Exploit' : 'Simple Spoof' });
+        res.json({
+            success: true,
+            script: script,
+            musicId: musicId,
+            method: useAC6 ? 'AC6 Exploit' : 'Simple Spoof'
+        });
 
     } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
     }
 });
 
@@ -148,49 +210,6 @@ app.post('/api/download-script', (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
-});
-
-// ==========================================
-// ROUTE: CEK ASSET
-// ==========================================
-app.get('/api/asset/:id', async (req, res) => {
-    try {
-        const assetId = req.params.id;
-        const apiKey = req.headers['x-api-key'] || process.env.ROBLOX_API_KEY;
-
-        if (!apiKey) {
-            return res.status(400).json({ success: false, error: 'API Key diperlukan!' });
-        }
-
-        const response = await axios.get(
-            `https://apis.roblox.com/assets/v1/assets/${assetId}`,
-            { headers: { 'x-api-key': apiKey }, timeout: 10000 }
-        );
-
-        res.json({
-            success: true,
-            assetId: assetId,
-            url: `rbxassetid://${assetId}`,
-            data: response.data
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.response?.data?.message || error.message || 'Asset tidak ditemukan'
-        });
-    }
-});
-
-// ==========================================
-// ROUTE: HEALTH CHECK
-// ==========================================
-app.get('/api/health', (req, res) => {
-    res.json({ 
-        status: '🔥 SirLion Spoof Music Running!', 
-        timestamp: new Date(),
-        port: PORT
-    });
 });
 
 // ==========================================
