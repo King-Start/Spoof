@@ -153,7 +153,35 @@ async function spoofDownload(assetId, apiKey = '') {
     errors.push(failTag('v1b', r));
   } catch (e) { errors.push(`v1b: ${e.message}`); }
 
-  // 3) Open Cloud asset-delivery-api — butuh API key (audio milikmu / yang diizinkan)
+  // 3) Jalur BER-API-KEY ke assetdelivery (siapa tahu key-mu punya hak atas audio ini)
+  if (apiKey) {
+    try {
+      const r = await fetch(`https://assetdelivery.roblox.com/v2/assetId/${assetId}`, {
+        headers: { ...UA, 'x-api-key': apiKey }, signal: AbortSignal.timeout(20000)
+      });
+      const j = await r.json().catch(() => ({}));
+      const loc = j.locations && j.locations[0] && j.locations[0].location;
+      if (loc) {
+        const f = await fetchBytes(loc);
+        if (looksLikeAudio(f.buf, f.contentType)) {
+          return { buffer: f.buf, source: 'assetdelivery-v2+key' };
+        }
+        errors.push(failTag('v2+key-cdn', f));
+      } else {
+        const e0 = j.errors && j.errors[0];
+        errors.push(e0 ? `v2+key (HTTP ${r.status} → Roblox ${e0.code}: ${e0.message})` : `v2+key: tidak ada location (${r.status})`);
+      }
+    } catch (e) { errors.push(`v2+key: ${e.message}`); }
+    try {
+      const r = await fetchBytes(`https://assetdelivery.roblox.com/v1/asset/?id=${assetId}`, { 'x-api-key': apiKey });
+      if (looksLikeAudio(r.buf, r.contentType)) {
+        return { buffer: r.buf, source: 'assetdelivery-v1+key' };
+      }
+      errors.push(failTag('v1+key', r));
+    } catch (e) { errors.push(`v1+key: ${e.message}`); }
+  }
+
+  // 4) Open Cloud asset-delivery-api — butuh API key (audio milikmu / yang diizinkan)
   if (apiKey) {
     try {
       const r = await fetchBytes(`https://apis.roblox.com/asset-delivery-api/v1/assetId/${assetId}`, { 'x-api-key': apiKey });
@@ -278,6 +306,48 @@ app.get('/api/spoof-audio/:id', async (req, res) => {
   }
 });
 
+// Cari kandidat publik + skor sendiri (dipakai /api/search-audio & /api/spoof-smart)
+async function toolboxSearch(keyword, want = 8) {
+  const sr = await fetch(
+    `https://apis.roblox.com/toolbox-service/v1/marketplace/3?keyword=${encodeURIComponent(keyword)}&limit=${Math.min(want * 3, 20)}&sortType=Relevance&audioTypes=Music`,
+    { headers: UA, signal: AbortSignal.timeout(20000) }
+  );
+  if (!sr.ok) throw new Error(sr.status === 429 ? 'Kena rate-limit Roblox (429).' : `Roblox search error (${sr.status}).`);
+  const sdata = await sr.json();
+  const ids = (sdata.data || []).map((x) => x.id).filter(Boolean).slice(0, 20);
+  if (!ids.length) return { total: 0, results: [] };
+  const dr = await fetch(
+    `https://apis.roblox.com/toolbox-service/v1/items/details?assetIds=${ids.join(',')}`,
+    { headers: UA, signal: AbortSignal.timeout(20000) }
+  );
+  const ddata = await dr.json().catch(() => ({ data: [] }));
+  const tokens = keyword.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
+  let results = (ddata.data || [])
+    .filter((item) => item.asset && item.asset.typeId === 3)
+    .map((item) => {
+      const a = item.asset;
+      const secs = Number(a.duration) || 0;
+      const name = a.name || '';
+      const artist = (a.audioDetails && a.audioDetails.artist) || (item.creator && item.creator.name) || '-';
+      const nl = name.toLowerCase(), al = artist.toLowerCase();
+      let score = 0;
+      for (const t of tokens) {
+        if (nl.includes(t)) score += 2;
+        if (al.includes(t)) score += 1;
+      }
+      return {
+        id: a.id, name, artist, secs, score,
+        duration: secs ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` : '?',
+        storeUrl: `https://create.roblox.com/store/asset/${a.id}`
+      };
+    });
+  if (tokens.length && results.some((x) => x.score > 0)) {
+    results = results.filter((x) => x.score > 0);
+  }
+  results.sort((p, q) => (q.score - p.score) || (q.secs - p.secs));
+  return { total: sdata.totalResults ?? results.length, results: results.slice(0, want) };
+}
+
 // ============================================================
 // SEARCH AUDIO PUBLIK — GET /api/search-audio?keyword=&limit=
 // Dipakai panel penyelamat: cari salinan publik dari lagu yang privat
@@ -287,55 +357,116 @@ app.get('/api/search-audio', async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 8, 1), 20);
   if (!keyword) return res.status(400).json({ success: false, error: 'Ketik judul lagu dulu!' });
   try {
-    const sr = await fetch(
-      `https://apis.roblox.com/toolbox-service/v1/marketplace/3?keyword=${encodeURIComponent(keyword)}&limit=${Math.min(limit * 3, 20)}&sortType=Relevance&audioTypes=Music`,
-      { headers: UA, signal: AbortSignal.timeout(20000) }
-    );
-    if (!sr.ok) {
-      return res.status(sr.status).json({
-        success: false,
-        error: sr.status === 429 ? 'Kena rate-limit Roblox (429). Tunggu sebentar.' : `Roblox search error (${sr.status}).`
-      });
-    }
-    const sdata = await sr.json();
-    // Ambil 2x lipat kandidat, lalu skor & saring sendiri (relevansi Roblox sering ngawur)
-    const ids = (sdata.data || []).map((x) => x.id).filter(Boolean).slice(0, 20);
-    if (!ids.length) return res.json({ success: true, keyword, total: 0, results: [] });
-    const dr = await fetch(
-      `https://apis.roblox.com/toolbox-service/v1/items/details?assetIds=${ids.join(',')}`,
-      { headers: UA, signal: AbortSignal.timeout(20000) }
-    );
-    const ddata = await dr.json().catch(() => ({ data: [] }));
-    const tokens = keyword.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
-    let results = (ddata.data || [])
-      .filter((item) => item.asset && item.asset.typeId === 3)
-      .map((item) => {
-        const a = item.asset;
-        const secs = Number(a.duration) || 0;
-        const name = a.name || '';
-        const artist = (a.audioDetails && a.audioDetails.artist) || (item.creator && item.creator.name) || '-';
-        const nl = name.toLowerCase(), al = artist.toLowerCase();
-        let score = 0;
-        for (const t of tokens) {
-          if (nl.includes(t)) score += 2;
-          if (al.includes(t)) score += 1;
-        }
-        return {
-          id: a.id, name, artist, secs, score,
-          duration: secs ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` : '?',
-          storeUrl: `https://create.roblox.com/store/asset/${a.id}`
-        };
-      });
-    // Kalau ada yang cocok judulnya, buang yang skor 0 (sampah sponsor). Urut: skor → durasi.
-    if (tokens.length && results.some((x) => x.score > 0)) {
-      results = results.filter((x) => x.score > 0);
-    }
-    results.sort((p, q) => (q.score - p.score) || (q.secs - p.secs));
-    results = results.slice(0, limit).map(({ secs, score, ...rest }) => rest);
-    res.json({ success: true, keyword, total: sdata.totalResults ?? results.length, results });
+    const { total, results } = await toolboxSearch(keyword, limit);
+    res.json({
+      success: true, keyword, total,
+      results: results.map(({ secs, score, ...rest }) => rest)
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error?.name === 'TimeoutError' ? 'Roblox timeout. Coba lagi.' : (error.message || 'Gagal mencari') });
   }
+});
+
+// ============================================================
+// SPOOF PINTAR — GET /api/spoof-smart/:id
+// ID privat → otomatis cari & pakai salinan publik yang BUNYI.
+// Balikan: binary audio + header X-Resolved-*
+// ============================================================
+app.get('/api/spoof-smart/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!/^\d+$/.test(id)) return res.status(400).json({ success: false, error: 'ID harus berupa angka!' });
+  const apiKey = (req.query.key || req.headers['x-api-key'] || '').trim();
+
+  // 1) Coba langsung dulu (siapa tahu publik / key-mu berhak)
+  try {
+    const dl = await spoofDownload(id, apiKey);
+    const ext = sniffAudioExt(dl.buffer) || 'mp3';
+    const meta = await fetchAssetMeta(id);
+    res.setHeader('Content-Type', EXT_TO_MIME[ext]);
+    res.setHeader('Content-Length', dl.buffer.length);
+    res.setHeader('X-Resolved-From', id);
+    res.setHeader('X-Resolved-To', id);
+    res.setHeader('X-Resolved-Name', encodeURIComponent(meta.name));
+    res.setHeader('X-Resolved-Artist', encodeURIComponent(meta.creator));
+    res.setHeader('X-Resolved-Format', ext);
+    res.setHeader('X-Resolved-Source', dl.source);
+    return res.send(dl.buffer);
+  } catch (e) { /* lanjut ke salinan publik */ }
+
+  // 2) Kumpulkan kandidat salinan publik (judul + artis + kata kunci)
+  const meta = await fetchAssetMeta(id);
+  const titleKnown = meta.name && !meta.name.startsWith('Audio_');
+  const artistKnown = meta.creator && meta.creator !== '-';
+  if (!titleKnown && !artistKnown) {
+    return res.status(404).json({
+      success: false, code: 'NO_PUBLIC_COPY',
+      error: `ID ${id} tidak dikenal / sudah dihapus dari Roblox. Periksa lagi ID-nya.`
+    });
+  }
+  const queries = [];
+  if (titleKnown) queries.push(meta.name);
+  if (artistKnown) queries.push(meta.creator);
+  if (titleKnown) {
+    const words = meta.name.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 5);
+    for (const w of words.slice(0, 2)) queries.push(w);
+  }
+
+  const seen = new Set([id]);
+  let candidates = [];
+  for (const q of queries.slice(0, 4)) {
+    try {
+      const { results } = await toolboxSearch(q, 8);
+      for (const c of results) {
+        if (!seen.has(String(c.id)) && c.score > 0) {
+          seen.add(String(c.id));
+          candidates.push(c);
+        }
+      }
+    } catch { /* query gagal → lanjut */ }
+  }
+  // WAJIB cocok dengan JUDUL asli (artis sama tapi lagu beda → jangan auto-load)
+  const titleToks = (meta.name || '').toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
+  candidates = candidates.map((c) => {
+    const nl = (c.name || '').toLowerCase(), al = (c.artist || '').toLowerCase();
+    let s = 0;
+    for (const t of titleToks) { if (nl.includes(t)) s += 2; if (al.includes(t)) s += 1; }
+    return { ...c, score: s };
+  }).filter((c) => titleToks.length > 0 && c.score > 0);
+  candidates.sort((p, q) => (q.score - p.score) || (q.secs - p.secs));
+  candidates = candidates.slice(0, 6);
+
+  if (!candidates.length) {
+    return res.status(404).json({
+      success: false, code: 'NO_PUBLIC_COPY',
+      error: `ID ${id} ("${meta.name}") privat dan tidak ditemukan salinan publiknya di Creator Store. Pakai jalur penyelamat: link MP3 langsung / upload file.`
+    });
+  }
+
+  // 3) Coba kandidat satu per satu sampai ada yang BUNYI
+  console.log(`🔍 smart-spoof ${id} ("${meta.name}"): ${candidates.length} salinan akan dicoba...`);
+  const tried = [];
+  for (const c of candidates) {
+    try {
+      const dl = await spoofDownload(String(c.id), apiKey);
+      console.log(`✅ smart-spoof ${id} → salinan ${c.id} ("${c.name}") BUNYI via ${dl.source}`);
+      const ext = sniffAudioExt(dl.buffer) || 'mp3';
+      res.setHeader('Content-Type', EXT_TO_MIME[ext]);
+      res.setHeader('Content-Length', dl.buffer.length);
+      res.setHeader('X-Resolved-From', id);
+      res.setHeader('X-Resolved-To', String(c.id));
+      res.setHeader('X-Resolved-Name', encodeURIComponent(c.name));
+      res.setHeader('X-Resolved-Artist', encodeURIComponent(c.artist));
+      res.setHeader('X-Resolved-Format', ext);
+      res.setHeader('X-Resolved-Source', dl.source);
+      return res.send(dl.buffer);
+    } catch (e) {
+      tried.push(c.id);
+    }
+  }
+  res.status(404).json({
+    success: false, code: 'NO_PUBLIC_COPY',
+    error: `ID ${id} privat; ${tried.length} salinan publik dicoba tapi semuanya juga terkunci. Pakai jalur penyelamat: link MP3 langsung / upload file.`
+  });
 });
 
 // ============================================================
@@ -405,6 +536,83 @@ app.post('/api/import-url', async (req, res) => {
     res.send(buf);
   } catch (error) {
     res.status(500).json({ success: false, error: error?.name === 'TimeoutError' ? 'Link lambat/timeout.' : ('Gagal ambil link: ' + (error.message || 'unknown')) });
+  }
+});
+
+// ============================================================
+// DIAGNOSA AKSES — POST /api/diagnose-access { assetId }
+// Cek langkah demi langkah kenapa key user ditolak untuk suatu ID
+// ============================================================
+app.post('/api/diagnose-access', async (req, res) => {
+  try {
+    const assetId = String((req.body || {}).assetId || '').trim();
+    const { apiKey } = getCreds(req);
+    if (!/^\d+$/.test(assetId)) return res.status(400).json({ success: false, error: 'Asset ID tidak valid!' });
+    if (!apiKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'Simpan API key dulu (buka 🔑 Kredensial → Simpan), baru diagnosa. Kalau link store bunyi di browser-mu, kemungkinan besar key-mu yang kurang izin — diagnosa akan membuktikannya.'
+      });
+    }
+    const steps = [];
+    const meta = await fetchAssetMeta(assetId);
+    steps.push({ ok: true, msg: `🎵 "${meta.name}" · milik ${meta.creator} · ${meta.assetTypeId === 3 ? 'Audio ✅' : 'tipe ' + meta.assetTypeId}` });
+
+    // 1) Key valid? Punya asset:read?
+    let keyValid = false, canRead = false;
+    try {
+      const q = await fetch('https://apis.roblox.com/assets/v1/assets/1', {
+        headers: { 'x-api-key': apiKey }, signal: AbortSignal.timeout(15000)
+      });
+      if (q.status === 401) {
+        steps.push({ ok: false, msg: '❌ API key TIDAK VALID (401). Cek key di Credentials + IP allowlist.' });
+      } else if (q.ok) {
+        keyValid = true; canRead = true;
+        steps.push({ ok: true, msg: '✅ Key valid + punya izin asset:read.' });
+      } else {
+        keyValid = true;
+        steps.push({ ok: false, msg: `⚠️ Key VALID tapi ditolak baca metadata (${q.status}) → scope asset:read kemungkinan BELUM aktif. Aktifkan di Creator Dashboard → Credentials → key-mu → Permissions → Assets → Read (+ Write), tunggu ±1 menit.` });
+      }
+    } catch (e) {
+      steps.push({ ok: false, msg: '❌ Tidak bisa menghubungi Roblox: ' + e.message });
+    }
+
+    // 2) Coba download via Open Cloud + key
+    if (keyValid) {
+      try {
+        const r = await fetchBytes(`https://apis.roblox.com/asset-delivery-api/v1/assetId/${assetId}`, { 'x-api-key': apiKey });
+        if (looksLikeAudio(r.buf, r.contentType)) {
+          steps.push({ ok: true, msg: `✅ Download Open Cloud BERHASIL (${(r.buf.length / 1024 / 1024).toFixed(2)} MB) — SPOOF ULANG sekarang, harusnya tembus!` });
+        } else {
+          steps.push({ ok: false, msg: '❌ Open Cloud menolak: ' + failTag('download', r) });
+        }
+      } catch (e) { steps.push({ ok: false, msg: '❌ Open Cloud error: ' + e.message }); }
+
+      // 3) Coba assetdelivery + key
+      try {
+        const r = await fetchBytes(`https://assetdelivery.roblox.com/v1/asset/?id=${assetId}`, { 'x-api-key': apiKey });
+        if (looksLikeAudio(r.buf, r.contentType)) {
+          steps.push({ ok: true, msg: '✅ assetdelivery + key BERHASIL — SPOOF ULANG sekarang!' });
+        } else {
+          steps.push({ ok: false, msg: '❌ assetdelivery + key menolak: ' + failTag('v1+key', r) });
+        }
+      } catch (e) { steps.push({ ok: false, msg: '❌ assetdelivery + key error: ' + e.message }); }
+    }
+
+    const dlOk = steps.some((s) => /BERHASIL/.test(s.msg));
+    let verdict;
+    if (dlOk) {
+      verdict = { ok: true, msg: '🎉 Salah satu jalur TEMBUS dengan key-mu — klik SPOOF ULANG di bawah!' };
+    } else if (!keyValid) {
+      verdict = { ok: false, msg: 'Perbaiki API key / IP allowlist dulu, lalu diagnosa + spoof ulang.' };
+    } else if (!canRead) {
+      verdict = { ok: false, msg: 'Aktifkan scope asset:read (+ asset:write) pada key-mu, tunggu ±1 menit, lalu SPOOF ULANG. Ini penyebab #1 kasus "link store bisa, app gagal".' };
+    } else {
+      verdict = { ok: false, msg: `Key-mu sehat (valid + asset:read), tapi akun pemilik key memang TIDAK punya hak atas audio milik "${meta.creator}" ini. Pastikan: (1) key dibuat di akun yang SAMA dengan browser-mu, (2) kalau audio grup — akunmu anggota grup itu. Jika ya dan tetap gagal → pemilik harus membuka akses; sementara itu pakai jalur penyelamat di bawah.` };
+    }
+    res.json({ success: true, steps, verdict });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message || 'Gagal diagnosa' });
   }
 });
 
