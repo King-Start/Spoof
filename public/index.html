@@ -94,7 +94,7 @@
   <section>
     <h2>⚡ Pakai ID Langsung <span class="badge">tanpa API key</span></h2>
     <input type="text" id="directId" placeholder="Tempel ID audio (contoh: 1836952586)">
-    <button onclick="checkId()">🔍 Cek & Buat Script</button>
+    <button id="checkBtn" onclick="checkId()">🔍 Cek & Buat Script</button>
     <div id="directLoading" class="loading hidden"><div class="spinner"></div>Mengecek asset...</div>
     <div id="directResult" class="result hidden"></div>
     <p class="note">
@@ -116,7 +116,7 @@
     <input type="file" id="fileInput" accept=".mp3,.ogg,.wav,.flac,audio/*" class="hidden">
     <label>Nama audio</label>
     <input type="text" id="audioName" placeholder="Nama di inventory (opsional)">
-    <button onclick="uploadAudio()">🚀 Upload ke Roblox</button>
+    <button id="uploadBtn" onclick="uploadAudio()">🚀 Upload ke Roblox</button>
     <div id="uploadLoading" class="loading hidden"><div class="spinner"></div>Uploading...</div>
     <div id="uploadResult" class="result hidden"></div>
   </section>
@@ -127,7 +127,7 @@
   <section>
     <h2>🔄 Upload ID (Spoof) <span class="badge">butuh API key</span></h2>
     <p style="color:#888;font-size:.85rem;margin-bottom:12px">
-      Masukin ID audio orang lain → download → upload ulang ke akun lo → <b>INSTANT APPROVE!</b>
+      Masukin ID audio <b>milikmu</b> (atau yang diizinkan Roblox ke API key-mu) → download resmi via Open Cloud → upload ulang ke akun lo → <b>langsung aktif buat game-mu!</b>
     </p>
     <div class="spoof-row">
       <input type="text" id="spoofIdInput" placeholder="Masukkan ID audio (contoh: 1836952586)">
@@ -352,6 +352,9 @@ function uploadAudio(){
 
 // ============================================================
 // SPOOF UPLOAD (Upload ID)
+// Download resmi via Open Cloud — Roblox yang menentukan izin.
+// Audio milikmu / yang diizinkan ke API key-mu → bisa di-upload ulang.
+// Audio privat orang lain → Roblox tolak (403).
 // ============================================================
 function spoofAndUpload(){
   const assetId=document.getElementById('spoofIdInput').value.trim();
@@ -375,7 +378,7 @@ function spoofAndUpload(){
     el.classList.remove('hidden','error');
     if(d.success){
       el.innerHTML=`
-        ✅ <strong>Upload Berhasil! ⚡ INSTANT APPROVE!</strong><br>
+        ✅ <strong>Upload Berhasil! ⚡ Langsung aktif di game-mu!</strong><br>
         🎵 ${esc(d.name)}<br>
         🔄 ${d.originalAssetId} → <strong style="color:#4dff9d">${d.newAssetId}</strong><br>
         📦 ${d.size} · ${d.format}<br>
@@ -394,7 +397,7 @@ function spoofAndUpload(){
   .catch(e=>{document.getElementById('spoofLoading').classList.add('hidden');alert('❌ '+e.message)});
 }
 
-function copyId(id){navigator.clipboard.writeText(id);alert('✅ ID: '+id);}
+function copyId(id){navigator.clipboard.writeText(id).then(()=>alert('✅ ID tersalin: '+id)).catch(()=>alert('ID: '+id));}
 
 // ============================================================
 // GENERATE SCRIPT
@@ -422,7 +425,7 @@ function generateScript(){
   .catch(e=>alert('❌ '+e.message));
 }
 
-function copyScript(){navigator.clipboard.writeText(currentScript);alert('✅ Script tersalin!');}
+function copyScript(){navigator.clipboard.writeText(currentScript).then(()=>alert('✅ Script tersalin!'));}
 function downloadScript(){
   const blob=new Blob([currentScript],{type:'text/plain'});
   const a=document.createElement('a');
