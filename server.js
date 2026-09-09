@@ -1,8 +1,8 @@
+// server.js - FINAL VERSION
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const FormData = require('form-data');
-const { spawn } = require('child_process');
 require('dotenv').config();
 
 const app = express();
@@ -13,66 +13,49 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.static('public'));
 
 // ==========================================
-// AMBIL INFO AUDIO DARI ID
+// ROUTE: SPOOF + PREVIEW + UPLOAD
 // ==========================================
-async function getAudioInfo(assetId) {
-    try {
-        // Pake endpoint Roblox buat dapetin info asset
-        const url = `https://economy.roblox.com/v2/assets/${assetId}/details`;
-        const response = await axios.get(url);
-        const data = response.data;
-        return {
-            name: data.Name || `Audio_${assetId}`,
-            description: data.Description || '',
-            created: data.Created,
-            updated: data.Updated,
-            assetType: data.AssetTypeId,
-            isPublic: data.IsPublic,
-            price: data.PriceInRobux || 0
-        };
-    } catch (error) {
-        console.warn('⚠️ Gagal ambil info asset, pake default');
-        return {
-            name: `Audio_${assetId}`,
-            description: '',
-            assetType: 3
-        };
-    }
-}
-
-// ==========================================
-// ROUTE: SPOOF + PREVIEW + INFO
-// ==========================================
-app.post('/api/spoof', async (req, res) => {
+app.post('/api/spoof-and-upload', async (req, res) => {
     try {
         const { assetId } = req.body;
         const apiKey = req.headers['x-api-key'] || process.env.ROBLOX_API_KEY;
         const userId = req.headers['x-user-id'] || process.env.ROBLOX_USER_ID;
 
         if (!apiKey || !userId) {
-            return res.status(400).json({ success: false, error: 'API Key dan User ID diperlukan!' });
+            return res.status(400).json({ 
+                success: false, 
+                error: 'API Key dan User ID diperlukan!' 
+            });
         }
 
         if (!assetId) {
-            return res.status(400).json({ success: false, error: 'Asset ID diperlukan!' });
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Asset ID diperlukan!' 
+            });
         }
 
         console.log(`🔄 Processing asset ID: ${assetId}`);
 
         // ==========================================
-        // STEP 1: AMBIL INFO AUDIO
+        // STEP 1: DAPETIN JUDUL AUDIO
         // ==========================================
-        const info = await getAudioInfo(assetId);
-        console.log(`📝 Audio Name: ${info.name}`);
+        let audioName = `Audio_${assetId}`;
+        try {
+            const infoRes = await axios.get(`https://economy.roblox.com/v2/assets/${assetId}/details`);
+            audioName = infoRes.data.Name || audioName;
+            console.log(`🎵 Audio Name: ${audioName}`);
+        } catch (e) {
+            console.warn('⚠️ Gagal ambil nama, pake default');
+        }
 
         // ==========================================
         // STEP 2: DOWNLOAD AUDIO ASLI
         // ==========================================
-        // 🎯 PAKE ENDPOINT YANG BENAR!
         const audioUrl = `https://assetdelivery.roblox.com/v1/asset?id=${assetId}`;
-        console.log(`📥 Downloading from: ${audioUrl}`);
+        console.log(`📥 Downloading: ${audioUrl}`);
 
-        const audioResponse = await axios.get(audioUrl, {
+        const audioRes = await axios.get(audioUrl, {
             responseType: 'arraybuffer',
             timeout: 60000,
             headers: {
@@ -81,78 +64,29 @@ app.post('/api/spoof', async (req, res) => {
             }
         });
 
-        const audioBuffer = Buffer.from(audioResponse.data);
-        const contentType = audioResponse.headers['content-type'] || 'audio/mpeg';
+        const audioBuffer = Buffer.from(audioRes.data);
+        const contentType = audioRes.headers['content-type'] || 'audio/mpeg';
         const ext = contentType.includes('wav') ? 'wav' : 
                     contentType.includes('ogg') ? 'ogg' : 'mp3';
-        const filename = `${info.name || 'spoofed'}_${assetId}.${ext}`;
+        const filename = `${audioName.replace(/[^a-zA-Z0-9]/g, '_')}_${assetId}.${ext}`;
 
         // Cek ukuran (kalo 4KB berarti error)
         if (audioBuffer.length < 10000) {
             throw new Error('Audio file terlalu kecil (kemungkinan placeholder)');
         }
 
-        console.log(`✅ Audio downloaded: ${filename} (${(audioBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
+        console.log(`✅ Downloaded: ${filename} (${(audioBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
 
         // ==========================================
-        // STEP 3: KONVERSI KE BASE64 (BUAT PREVIEW)
+        // STEP 3: UPLOAD KE ROBLOX (INSTANT APPROVE!)
         // ==========================================
-        const audioBase64 = audioBuffer.toString('base64');
-        const audioDataUrl = `data:${contentType};base64,${audioBase64}`;
-
-        // ==========================================
-        // STEP 4: KIRIM HASIL KE FRONTEND
-        // ==========================================
-        res.json({
-            success: true,
-            originalAssetId: assetId,
-            filename: filename,
-            name: info.name,
-            description: info.description,
-            size: audioBuffer.length,
-            sizeFormatted: `${(audioBuffer.length / 1024 / 1024).toFixed(2)} MB`,
-            audioDataUrl: audioDataUrl,  // ⭐ BUAT PREVIEW!
-            contentType: contentType,
-            assetType: info.assetType,
-            message: `✅ Audio "${info.name}" siap di-preview!`
-        });
-
-    } catch (error) {
-        console.error('❌ Error:', error.message);
-        res.status(500).json({
-            success: false,
-            error: error.message || 'Gagal download audio'
-        });
-    }
-});
-
-// ==========================================
-// ROUTE: UPLOAD KE ROBLOX
-// ==========================================
-app.post('/api/upload-to-roblox', async (req, res) => {
-    try {
-        const { audioDataUrl, filename, name, assetId } = req.body;
-        const apiKey = req.headers['x-api-key'] || process.env.ROBLOX_API_KEY;
-        const userId = req.headers['x-user-id'] || process.env.ROBLOX_USER_ID;
-
-        if (!apiKey || !userId) {
-            return res.status(400).json({ success: false, error: 'API Key dan User ID diperlukan!' });
-        }
-
-        if (!audioDataUrl) {
-            return res.status(400).json({ success: false, error: 'Audio data diperlukan!' });
-        }
-
-        const base64Data = audioDataUrl.split(',')[1];
-        const audioBuffer = Buffer.from(base64Data, 'base64');
-
-        console.log(`📤 Uploading to Roblox: ${filename || 'audio.mp3'} (${(audioBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
-
         const form = new FormData();
         form.append('file', audioBuffer, {
-            filename: filename || `${name || 'spoofed'}.mp3`,
-            contentType: 'audio/mpeg'
+            filename: filename,
+            contentType: contentType
         });
+
+        console.log(`📤 Uploading to Roblox via Open Cloud API...`);
 
         const uploadRes = await axios.post(
             'https://apis.roblox.com/assets/v1/assets/upload',
@@ -163,26 +97,32 @@ app.post('/api/upload-to-roblox', async (req, res) => {
                     'x-api-key': apiKey,
                     'x-user-id': userId
                 },
-                timeout: 120000  // 2 menit timeout
+                timeout: 120000
             }
         );
 
         const newAssetId = uploadRes.data.assetId;
         console.log(`✅ New asset created: ${newAssetId}`);
 
+        // ==========================================
+        // STEP 4: KIRIM HASIL
+        // ==========================================
         res.json({
             success: true,
             originalAssetId: assetId,
             newAssetId: newAssetId,
             url: `rbxassetid://${newAssetId}`,
-            message: `✅ Berhasil upload! ID: ${newAssetId}`
+            name: audioName,
+            filename: filename,
+            size: `${(audioBuffer.length / 1024 / 1024).toFixed(2)} MB`,
+            message: `✅ Berhasil! ${assetId} → ${newAssetId} (INSTANT APPROVE!)`
         });
 
     } catch (error) {
-        console.error('❌ Upload error:', error.message);
+        console.error('❌ Error:', error.message);
         res.status(500).json({
             success: false,
-            error: error.message || 'Gagal upload ke Roblox'
+            error: error.message || 'Gagal spoof & upload audio'
         });
     }
 });
@@ -237,6 +177,30 @@ app.post('/api/download-script', (req, res) => {
         res.send(script);
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ==========================================
+// ROUTE: CEK ASSET
+// ==========================================
+app.get('/api/asset/:id', async (req, res) => {
+    try {
+        const assetId = req.params.id;
+        const apiKey = req.headers['x-api-key'] || process.env.ROBLOX_API_KEY;
+        if (!apiKey) return res.status(400).json({ success: false, error: 'API Key diperlukan!' });
+
+        const response = await axios.get(
+            `https://economy.roblox.com/v2/assets/${assetId}/details`
+        );
+        res.json({
+            success: true,
+            assetId: assetId,
+            name: response.data.Name,
+            url: `rbxassetid://${assetId}`,
+            data: response.data
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message || 'Asset tidak ditemukan' });
     }
 });
 
