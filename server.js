@@ -8,15 +8,14 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 app.use(express.static('public'));
 
 // ==========================================
-// ROUTE: SPOOF AUDIO
+// ROUTE: SPOOF + PREVIEW AUDIO
 // ==========================================
 app.post('/api/spoof', async (req, res) => {
     try {
-        console.log('📥 Spoof request:', req.body);
         const { assetId } = req.body;
         const apiKey = req.headers['x-api-key'] || process.env.ROBLOX_API_KEY;
         const userId = req.headers['x-user-id'] || process.env.ROBLOX_USER_ID;
@@ -29,10 +28,11 @@ app.post('/api/spoof', async (req, res) => {
             return res.status(400).json({ success: false, error: 'Asset ID diperlukan!' });
         }
 
+        console.log(`🔄 Processing asset ID: ${assetId}`);
+
         // ==========================================
-        // DOWNLOAD AUDIO DARI ID ORANG LAIN
+        // STEP 1: DOWNLOAD AUDIO
         // ==========================================
-        console.log(`📥 Downloading audio ID: ${assetId}`);
         const audioUrl = `https://www.roblox.com/asset/?id=${assetId}`;
         const audioResponse = await axios.get(audioUrl, {
             responseType: 'arraybuffer',
@@ -41,15 +41,67 @@ app.post('/api/spoof', async (req, res) => {
 
         const audioBuffer = Buffer.from(audioResponse.data);
         const contentType = audioResponse.headers['content-type'] || 'audio/mpeg';
-        const ext = contentType.includes('wav') ? 'wav' : contentType.includes('ogg') ? 'ogg' : 'mp3';
+        const ext = contentType.includes('wav') ? 'wav' : 
+                    contentType.includes('ogg') ? 'ogg' : 'mp3';
         const filename = `spoofed_${assetId}.${ext}`;
-        console.log(`✅ Downloaded: ${filename} (${audioBuffer.length} bytes)`);
+
+        // Convert ke base64 buat preview di frontend
+        const audioBase64 = audioBuffer.toString('base64');
+        const audioDataUrl = `data:${contentType};base64,${audioBase64}`;
+
+        console.log(`✅ Audio downloaded: ${filename} (${audioBuffer.length} bytes)`);
 
         // ==========================================
-        // UPLOAD ULANG KE ROBLOX (PAKE API KEY LO)
+        // STEP 2: KIRIM PREVIEW + DATA KE FRONTEND
         // ==========================================
+        res.json({
+            success: true,
+            originalAssetId: assetId,
+            filename: filename,
+            audioDataUrl: audioDataUrl,  // ⭐ BUAT PREVIEW DI WEB!
+            contentType: contentType,
+            size: audioBuffer.length,
+            message: `✅ Audio siap di-preview!`
+        });
+
+    } catch (error) {
+        console.error('❌ Error:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Gagal download audio'
+        });
+    }
+});
+
+// ==========================================
+// ROUTE: UPLOAD ULANG KE ROBLOX
+// ==========================================
+app.post('/api/upload-to-roblox', async (req, res) => {
+    try {
+        const { assetId, audioDataUrl, filename } = req.body;
+        const apiKey = req.headers['x-api-key'] || process.env.ROBLOX_API_KEY;
+        const userId = req.headers['x-user-id'] || process.env.ROBLOX_USER_ID;
+
+        if (!apiKey || !userId) {
+            return res.status(400).json({ success: false, error: 'API Key dan User ID diperlukan!' });
+        }
+
+        if (!audioDataUrl) {
+            return res.status(400).json({ success: false, error: 'Audio data diperlukan!' });
+        }
+
+        // Konversi base64 ke buffer
+        const base64Data = audioDataUrl.split(',')[1];
+        const audioBuffer = Buffer.from(base64Data, 'base64');
+
+        console.log(`📤 Uploading to Roblox: ${filename || 'audio.mp3'}`);
+
+        // Upload ke Roblox
         const form = new FormData();
-        form.append('file', audioBuffer, { filename, contentType });
+        form.append('file', audioBuffer, {
+            filename: filename || 'spoofed_audio.mp3',
+            contentType: 'audio/mpeg'
+        });
 
         const uploadRes = await axios.post(
             'https://apis.roblox.com/assets/v1/assets/upload',
@@ -65,27 +117,27 @@ app.post('/api/spoof', async (req, res) => {
         );
 
         const newAssetId = uploadRes.data.assetId;
-        console.log(`✅ New asset: ${newAssetId}`);
+        console.log(`✅ New asset created: ${newAssetId}`);
 
         res.json({
             success: true,
             originalAssetId: assetId,
             newAssetId: newAssetId,
             url: `rbxassetid://${newAssetId}`,
-            message: `✅ Berhasil! ${assetId} → ${newAssetId}`
+            message: `✅ Berhasil upload ke Roblox! ID: ${newAssetId}`
         });
 
     } catch (error) {
-        console.error('❌ Error:', error.message);
+        console.error('❌ Upload error:', error.message);
         res.status(500).json({
             success: false,
-            error: error.message || 'Gagal spoof audio'
+            error: error.message || 'Gagal upload ke Roblox'
         });
     }
 });
 
 // ==========================================
-// ROUTE: GENERATE SCRIPT
+// GENERATE SCRIPT
 // ==========================================
 app.post('/api/generate-script', (req, res) => {
     try {
@@ -123,7 +175,7 @@ print("✅ Audio ID: ${musicId}")`;
 });
 
 // ==========================================
-// ROUTE: DOWNLOAD SCRIPT
+// DOWNLOAD SCRIPT
 // ==========================================
 app.post('/api/download-script', (req, res) => {
     try {
@@ -138,7 +190,7 @@ app.post('/api/download-script', (req, res) => {
 });
 
 // ==========================================
-// ROUTE: CEK ASSET
+// CEK ASSET
 // ==========================================
 app.get('/api/asset/:id', async (req, res) => {
     try {
@@ -160,7 +212,7 @@ app.get('/api/asset/:id', async (req, res) => {
 // HEALTH CHECK
 // ==========================================
 app.get('/api/health', (req, res) => {
-    res.json({ status: '🔥 SirLion Running!', timestamp: new Date() });
+    res.json({ status: '🔥 SirLion Spoof Music Running!', timestamp: new Date() });
 });
 
 // ==========================================
