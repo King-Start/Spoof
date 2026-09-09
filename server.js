@@ -133,6 +133,42 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 });
 
 // ==========================================
+// ROUTE: STREAM AUDIO UNTUK PLAY LANGSUNG DI WEB
+// Open Cloud download API (resmi) — butuh API key; pasti bisa untuk audio milikmu
+// ==========================================
+app.get('/api/audio-stream/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!/^\d+$/.test(id)) return res.status(400).json({ success: false, error: 'ID tidak valid' });
+  const apiKey = req.headers['x-api-key'] || process.env.ROBLOX_API_KEY || '';
+  if (!apiKey) {
+    return res.status(400).json({
+      success: false,
+      error: 'Butuh API key (isi di bagian Upload → details 🔑) untuk memutar audio langsung di web. Tanpa key, Roblox tidak mengizinkan akses file audio.'
+    });
+  }
+  try {
+    const r = await fetch(`https://apis.roblox.com/assets/v1/assets/${id}:download`, {
+      headers: { 'x-api-key': apiKey }
+    });
+    if (!r.ok) {
+      const msg = r.status === 403
+        ? 'Audio ini bukan milik akunmu / tidak punya izin download (audio privat orang lain tidak bisa diputar)'
+        : r.status === 404
+        ? 'Asset tidak ditemukan atau bukan audio'
+        : `Gagal (${r.status})`;
+      return res.status(r.status).json({ success: false, error: msg });
+    }
+    let ct = r.headers.get('content-type') || 'audio/mpeg';
+    if (!ct.startsWith('audio/')) ct = 'audio/mpeg';
+    res.setHeader('Content-Type', ct);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(Buffer.from(await r.arrayBuffer()));
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message || 'Gagal stream audio' });
+  }
+});
+
+// ==========================================
 // ROUTE: CARI LAGU DI CREATOR STORE (publik, tanpa API key)
 // keyword → daftar audio (nama, artis, durasi, ID)
 // ==========================================
