@@ -189,7 +189,28 @@
   </section>
 
   <!-- ========================================================= -->
-  <!-- 3. GENERATE SCRIPT -->
+  <!-- 3. YOUTUBE IMPORT -->
+  <!-- ========================================================= -->
+  <section>
+    <h2>🎬 YouTube Import <span class="badge">baru</span></h2>
+    <label>Cari lagu di YouTube</label>
+    <div class="row">
+      <input type="text" id="ytKeyword" placeholder="Judul lagu / artis" onkeydown="if(event.key==='Enter')ytSearch()" style="flex:2">
+      <button id="ytSearchBtn" style="margin-top:0" onclick="ytSearch()">🔎 Cari</button>
+    </div>
+    <div id="ytResults"></div>
+    <div class="orline">— atau —</div>
+    <label>Tempel link YouTube langsung</label>
+    <div class="row">
+      <input type="text" id="ytUrl" placeholder="https://www.youtube.com/watch?v=..." onkeydown="if(event.key==='Enter')ytImportDirect()" style="flex:2">
+      <button id="ytImportBtn" style="margin-top:0" onclick="ytImportDirect()">🔗 Ambil Audio</button>
+    </div>
+    <div id="ytLoading" class="loading hidden"><div class="spinner"></div><span id="ytLoadingText">Mengambil audio...</span></div>
+    <p class="note">⏱ Maks <b>7 menit</b> (aturan Roblox) · 🚫 Live/privat/dibatasi umur tidak bisa diambil · 🙏 Pakai lagu yang kamu punya haknya ya · 💡 Kalau error "verifikasi bot", YouTube sedang membatasi IP server — jalankan app di PC rumah.</p>
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- 4. GENERATE SCRIPT -->
   <!-- ========================================================= -->
   <section>
     <h2>📜 Generate Script</h2>
@@ -370,7 +391,7 @@ async function loadIntoStudio({blob,name,creator,id,format,storeUrl}){
   document.getElementById('trackMeta').innerHTML=
     `⏱ Durasi: <b>${fmtTime(audioBuf.duration)}</b> · 📦 ${(blob.size/1024/1024).toFixed(2)} MB ${spoofMeta.format.toUpperCase()} · 👤 ${esc(spoofMeta.creator)}`+
     (id?` · 🆔 ${esc(id)}`:` · 🔗 sumber luar`)+
-    (storeUrl?`<br><a href="${storeUrl}" target="_blank" rel="noopener">▶ Lihat di Creator Store</a>`:'');
+    (storeUrl?`<br><a href="${storeUrl}" target="_blank" rel="noopener">▶ ${storeUrl.includes('youtube.com')?'Buka di YouTube':'Lihat di Creator Store'}</a>`:'');
   document.getElementById('timeTotal').textContent=fmtTime(audioBuf.duration);
   if(id && /^\d+$/.test(id)) document.getElementById('scriptId').value=id;
   resetSliders();
@@ -803,6 +824,65 @@ function useId(id){
 }
 
 // ============================================================
+// YOUTUBE: SEARCH + IMPORT → masuk studio
+// ============================================================
+async function ytSearch(){
+  const q=document.getElementById('ytKeyword').value.trim();
+  if(!q) return alert('Ketik judul lagu!');
+  const btn=document.getElementById('ytSearchBtn');
+  btn.disabled=true;
+  const box=document.getElementById('ytResults');
+  box.innerHTML='<p class="note">🔎 Mencari di YouTube...</p>';
+  try{
+    const r=await fetch('/api/yt-search?q='+encodeURIComponent(q)+'&limit=8');
+    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
+    if(!d.success){box.innerHTML=`<div class="result error">❌ ${esc(d.error||'Gagal mencari')}</div>`;return;}
+    const results=Array.isArray(d.results)?d.results:[];
+    if(!results.length){box.innerHTML=`<div class="result warn">😐 Tidak ketemu "${esc(q)}". Coba kata kunci lain.</div>`;return;}
+    box.innerHTML=`<p class="note">${results.length} hasil — klik ⬇️ Ambil (maks 7 menit):</p>`+
+      results.map(x=>{
+        const tooLong=x.durationSec&&x.durationSec>7*60;
+        return `
+        <div class="sr-row">
+          <img src="${x.thumb}" alt="" loading="lazy" style="width:72px;height:40px;object-fit:cover;border-radius:6px;flex-shrink:0" onerror="this.style.display='none'">
+          <div class="sr-info">
+            <div class="sr-name">🎵 ${esc(x.title)}</div>
+            <div class="sr-meta">📺 ${esc(x.channel)} · ⏱ ${esc(x.duration)}${x.views?' · 👁 '+esc(x.views):''}${tooLong?' · ⚠️ &gt;7 mnt':''}</div>
+          </div>
+          <button class="sr-use" onclick="ytImport('${x.id}')" ${tooLong?'disabled style="opacity:.4"':''}>⬇️ Ambil</button>
+        </div>`;}).join('');
+  }catch(e){box.innerHTML=`<div class="result error">❌ ${esc(e.message)}</div>`;}
+  finally{btn.disabled=false;}
+}
+
+function ytImportDirect(){ ytImport(document.getElementById('ytUrl').value.trim()); }
+
+async function ytImport(idOrUrl){
+  const v=(idOrUrl||'').trim();
+  if(!v) return alert('Tempel link YouTube dulu!');
+  document.getElementById('ytLoading').classList.remove('hidden');
+  document.getElementById('ytLoadingText').textContent='⬇️ Download + transcode MP3... (±10–60 detik)';
+  try{
+    const r=await fetch('/api/yt-import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:v})});
+    const ct=r.headers.get('content-type')||'';
+    if(!r.ok||ct.includes('json')){
+      const e=await r.json().catch(()=>({}));
+      throw new Error(e.error||`Gagal ambil YouTube (${r.status})`);
+    }
+    const blob=await r.blob();
+    const vid=r.headers.get('X-Import-VideoId')||'';
+    await loadIntoStudio({
+      blob,
+      name:decodeURIComponent(r.headers.get('X-Import-Name')||'')||'YouTube Audio',
+      creator:decodeURIComponent(r.headers.get('X-Import-Creator')||'')||'YouTube',
+      id:null, format:'mp3',
+      storeUrl:vid?`https://www.youtube.com/watch?v=${vid}`:''
+    });
+  }catch(e){alert('❌ '+e.message);}
+  finally{document.getElementById('ytLoading').classList.add('hidden');}
+}
+
+// ============================================================
 // GENERATE SCRIPT (+ Lua syntax highlight)
 // ============================================================
 async function generateScript(){
@@ -863,5 +943,5 @@ function fmtTime(sec){
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a387f9fba952d008',t:'MTc4ODk3NTYxMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
