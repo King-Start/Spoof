@@ -42,6 +42,7 @@
         .sr-name{font-weight:bold;font-size:.9rem;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .sr-meta{font-size:.72rem;color:#999;margin-top:2px}
         .sr-use{width:auto;margin:0;padding:8px 14px;font-size:.78rem;white-space:nowrap}
+        .sr-play{width:38px;height:38px;margin:0;padding:0;border-radius:50%;font-size:1rem;flex-shrink:0;display:flex;align-items:center;justify-content:center}
     </style>
 </head>
 <body>
@@ -61,7 +62,7 @@
         </div>
         <div id="searchLoading" class="loading hidden"><div class="spinner"></div>Mencari di Creator Store...</div>
         <div id="searchResults" class="hidden" style="margin-top:12px"></div>
-        <p class="note">💡 Semua audio di sini tersedia resmi di <b>Roblox Creator Store</b> — ID-nya bebas dipakai di game-mu tanpa upload & tanpa approve. Kalau ada yang minta "Get" dulu, klik judulnya lalu ambil gratis di halaman store-nya.</p>
+        <p class="note">▶ = dengarkan preview di halaman resmi Creator Store (Roblox punya player-nya sendiri di sana, bisa langsung play kalau kamu login ke Roblox). 📺 = cari lagunya di YouTube. ⚡ = pakai ID-nya langsung buat generate script. Semua audio di sini tersedia resmi di Creator Store — bebas dipakai di game-mu tanpa upload & tanpa approve.</p>
     </section>
 
     <!-- ================= PAKAI ID LANGSUNG ================= -->
@@ -167,9 +168,10 @@ function searchAudio(){
         el.innerHTML=`<p style="font-size:.78rem;color:#888;margin-bottom:8px">${d.total}+ hasil untuk "<b>${esc(kw)}</b>" — pilih salah satu:</p>`+
             d.results.map(r=>`
             <div class="sr-row">
+                <button class="sr-play" onclick="window.open('${r.storeUrl}','_blank')" title="Dengarkan preview di Creator Store">▶</button>
                 <div class="sr-info">
                     <div class="sr-name">🎵 <a href="${r.storeUrl}" target="_blank" rel="noopener">${esc(r.name)}</a></div>
-                    <div class="sr-meta">🎤 ${esc(r.artist)} · ⏱ ${r.duration} · ${r.likes} · ID: ${r.id}</div>
+                    <div class="sr-meta">🎤 ${esc(r.artist)} · ⏱ ${r.duration} · ${r.likes} · ID: ${r.id} · <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(r.artist + ' ' + r.name)}" target="_blank" rel="noopener" title="Cari di YouTube">📺 YouTube</a></div>
                 </div>
                 <button class="sr-use" onclick="useId('${r.id}')">⚡ Pakai ID Ini</button>
             </div>`).join('');
@@ -209,7 +211,8 @@ function checkId(){
                     🎵 <strong>${esc(d.name)}</strong><br>
                     🆔 ID: ${id} · Tipe: Audio ✅<br>
                     👤 Creator: ${esc(d.creator||'-')}<br>
-                    🔗 ${d.url}<br><br>
+                    🔗 ${d.url}<br>
+                    <a class="sr-use btn-secondary" style="display:inline-block;text-decoration:none;text-align:center" href="${d.storeUrl}" target="_blank" rel="noopener">▶ Dengarkan di Creator Store</a> <a class="sr-use btn-secondary" style="display:inline-block;text-decoration:none;text-align:center" href="https://www.youtube.com/results?search_query=${encodeURIComponent(d.name || '')}" target="_blank" rel="noopener">📺 YouTube</a><br><br>
                     Script sudah dibuat otomatis di bawah ⬇️ — tinggal copy & taruh di game-mu.
                     Kalau saat dijalankan muncul <i>error permission</i>, berarti audionya private milik orang lain.`;
                 generateScript();
@@ -371,5 +374,5 @@ function downloadScript(){
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a384e5b0d859de20',t:'MTc4ODk0MzMyMQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a384f6c48a53225a',t:'MTc4ODk0NDAyMQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
