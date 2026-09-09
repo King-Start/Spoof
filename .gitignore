@@ -1,0 +1,34 @@
+# ==========================================
+# .gitignore - SirLion Spoof Music
+# Jangan upload file-file ini ke GitHub!
+# ==========================================
+
+# Node.js (dependency)
+node_modules/
+
+# File sementara upload
+uploads/
+
+# File rahasia (API Key, dll)
+.env
+
+# Log file
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Sistem
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Editor
+.vscode/
+.idea/
+*.iml
+
+# OS
+.env.local
+.env.*.local
