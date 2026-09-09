@@ -1,7 +1,4 @@
-// ==========================================
-// SIRLION SPOOF MUSIC - FRONTEND
-// ==========================================
-
+// script.js - SirLion Spoof Music
 let uploadedFile = null;
 
 // ===== API KEY =====
