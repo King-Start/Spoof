@@ -1,0 +1,312 @@
+/* ==========================================
+   SIRLION SPOOF MUSIC - STYLE
+   ========================================== */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+    color: #fff;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+/* ===== HEADER ===== */
+header {
+    text-align: center;
+    padding: 30px 0;
+}
+
+header h1 {
+    font-size: 2.5rem;
+    background: linear-gradient(45deg, #f7971e, #ffd200);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+header p {
+    color: #aaa;
+    margin-top: 10px;
+}
+
+/* ===== SECTIONS ===== */
+section {
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 25px;
+    margin-bottom: 20px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+section h2 {
+    margin-bottom: 15px;
+    color: #f7971e;
+    font-size: 1.3rem;
+}
+
+/* ===== API SETUP ===== */
+.api-setup {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.api-setup input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 5px;
+    background: rgba(255,255,255,0.05);
+    color: #fff;
+    min-width: 200px;
+}
+
+.api-setup input::placeholder {
+    color: #666;
+}
+
+.api-setup button {
+    padding: 10px 25px;
+    background: linear-gradient(45deg, #00b894, #00cec9);
+    border: none;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #fff;
+}
+
+.hint {
+    font-size: 0.7rem;
+    color: #666;
+    margin-top: 8px;
+}
+
+.hint a {
+    color: #f7971e;
+    text-decoration: none;
+}
+
+.status {
+    margin-top: 10px;
+    padding: 8px;
+    border-radius: 5px;
+    text-align: center;
+}
+
+.status.success {
+    background: rgba(0,255,0,0.1);
+    color: #0f0;
+}
+
+.status.error {
+    background: rgba(255,0,0,0.1);
+    color: #f00;
+}
+
+/* ===== UPLOAD ===== */
+.upload-area {
+    border: 2px dashed rgba(255,255,255,0.2);
+    border-radius: 10px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.upload-area:hover {
+    border-color: #f7971e;
+    background: rgba(247, 151, 30, 0.05);
+}
+
+.upload-area button {
+    background: #f7971e;
+    border: none;
+    color: #000;
+    padding: 10px 25px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+.file-info {
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(247, 151, 30, 0.1);
+    border-radius: 10px;
+}
+
+.file-info button {
+    margin-top: 10px;
+    padding: 10px 25px;
+    background: linear-gradient(45deg, #f7971e, #ffd200);
+    border: none;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* ===== RESULT ===== */
+.result {
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(0,255,0,0.1);
+    border-radius: 10px;
+    border: 1px solid rgba(0,255,0,0.2);
+}
+
+.result button {
+    margin: 5px 5px 0 0;
+    padding: 8px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.result button:first-of-type {
+    background: #f7971e;
+}
+
+.result button:last-of-type {
+    background: #00b894;
+    color: #fff;
+}
+
+/* ===== SCRIPT ===== */
+.script-generator input[type="text"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 5px;
+    background: rgba(255,255,255,0.05);
+    color: #fff;
+    margin-bottom: 10px;
+}
+
+.script-generator input[type="range"] {
+    width: 200px;
+    vertical-align: middle;
+}
+
+.script-generator label {
+    display: inline-block;
+    margin: 5px 15px 5px 0;
+    color: #ccc;
+}
+
+.script-generator button {
+    margin-top: 10px;
+    padding: 10px 25px;
+    background: linear-gradient(45deg, #6c5ce7, #a29bfe);
+    border: none;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #fff;
+}
+
+.script-output {
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 10px;
+}
+
+.script-output pre {
+    background: #0a0a0a;
+    padding: 15px;
+    border-radius: 5px;
+    font-size: 12px;
+    color: #00ff88;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.script-output button {
+    margin-top: 10px;
+    padding: 8px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.script-output button:first-of-type {
+    background: #f7971e;
+}
+
+.script-output button:last-of-type {
+    background: #00b894;
+    color: #fff;
+}
+
+/* ===== LOOKUP ===== */
+.lookup-input {
+    display: flex;
+    gap: 10px;
+}
+
+.lookup-input input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 5px;
+    background: rgba(255,255,255,0.05);
+    color: #fff;
+}
+
+.lookup-input button {
+    padding: 10px 20px;
+    background: #6c5ce7;
+    border: none;
+    border-radius: 5px;
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* ===== FOOTER ===== */
+footer {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+    font-size: 0.8rem;
+}
+
+/* ===== UTILITY ===== */
+.hidden {
+    display: none !important;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+    .api-setup {
+        flex-direction: column;
+    }
+    
+    .api-setup input {
+        min-width: unset;
+    }
+    
+    .lookup-input {
+        flex-direction: column;
+    }
+    
+    section {
+        padding: 15px;
+    }
+}
