@@ -69,8 +69,11 @@
       <input type="text" id="userId" placeholder="User ID Roblox">
       <label>Group ID <span style="color:#666">(opsional)</span></label>
       <input type="text" id="groupId" placeholder="Kosongkan kalau pribadi">
-      <button onclick="saveKey()">💾 Simpan</button>
-      <div id="status" style="text-align:center;margin-top:8px;color:#4dff9d;font-size:.85rem"></div>
+      <div class="row">
+        <button onclick="saveKey()">💾 Simpan</button>
+        <button class="btn-secondary" onclick="testKey()">🔍 Tes Kredensial</button>
+      </div>
+      <div id="status" style="text-align:center;margin-top:8px;color:#4dff9d;font-size:.85rem;line-height:1.6"></div>
     </details>
   </section>
 
@@ -202,6 +205,35 @@ function saveKey(){
   if(!key||!uid) return alert('API Key dan User ID wajib!');
   localStorage.setItem('key',key); localStorage.setItem('uid',uid); localStorage.setItem('gid',gid);
   document.getElementById('status').textContent='✅ Kredensial tersimpan';
+}
+
+async function testKey(){
+  const key=document.getElementById('apiKey').value.trim(),
+        uid=document.getElementById('userId').value.trim();
+  if(!key||!uid) return alert('Isi API Key dan User ID dulu!');
+  const st=document.getElementById('status');
+  st.style.color='#ffd200';
+  st.textContent='🔎 Sedang mengecek kredensial ke Roblox...';
+  try{
+    const r=await fetch('/api/check-key',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({apiKey:key,userId:uid})
+    });
+    const d=await r.json();
+    if(!d.success){st.style.color='#ff7b7b';st.textContent='❌ '+d.error;return;}
+    st.innerHTML=d.report.map(x=>`<div style="color:${x.ok?'#4dff9d':'#ff7b7b'}">${esc(x.msg)}</div>`).join('');
+    const resolved=d.report.find(x=>x.resolvedId);
+    if(resolved&&resolved.resolvedId){
+      document.getElementById('userId').value=resolved.resolvedId;
+      localStorage.setItem('uid',String(resolved.resolvedId));
+    }
+    st.style.color=d.ok?'#4dff9d':'#ff9d4d';
+    if(d.ok) st.insertAdjacentHTML('beforeend','<div style="color:#4dff9d">🎉 Kredensial siap — tinggal upload!</div>');
+  }catch(e){
+    st.style.color='#ff7b7b';
+    st.textContent='❌ '+e.message;
+  }
 }
 
 // ============================================================
@@ -339,6 +371,7 @@ function uploadAudio(){
         🎵 ${esc(d.name)}<br>
         🆔 <strong>${d.newAssetId}</strong><br>
         📦 ${d.size} · ${d.format}<br>
+        <span style="font-size:.78rem;color:#aaa">📍 Audio ada di: <b>Creator Dashboard → Development Items → Audio</b> (privat). ID-nya langsung bisa dipakai di game-mu.</span><br>
         <button class="btn-secondary" onclick="useId('${d.newAssetId}')" style="background:#f7971e;color:#111;border:none;padding:8px 16px;border-radius:6px;font-weight:bold;cursor:pointer">📜 Buat Script</button>
       `;
       document.getElementById('scriptId').value=d.newAssetId;
@@ -440,5 +473,5 @@ function downloadScript(){
 // ============================================================
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a38551309fc30786',t:'MTc4ODk0NzcyNA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
