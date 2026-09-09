@@ -112,7 +112,7 @@
     </div>
     <div id="spoofLoading" class="loading hidden"><div class="spinner"></div><span id="spoofLoadingText">Mengambil audio dari Roblox...</span></div>
     <div id="spoofError" class="result error hidden"></div>
-    <p class="note">💡 Bisa tempel <b>link store langsung</b> (cth: <span style="color:#f7971e">create.roblox.com/store/asset/1848350665</span>) — ID-nya diambil otomatis, tinggal tukar-tukar link!<br>🔒 Kena ID privat? Otomatis ditawari <b>versi publik lagu yang sama</b>, <b>link MP3</b>, atau <b>file sendiri</b>.</p>
+    <p class="note">💡 Bisa tempel <b>link store langsung</b> (cth: <span style="color:#f7971e">create.roblox.com/store/asset/1848350665</span>) — ID-nya diambil otomatis, tinggal tukar-tukar link!<br>🔒 Kena ID privat? Otomatis dicarikan salinan publik, atau pilih: <b>link MP3</b>, <b>file sendiri</b>, <b>download via browser</b>.</p>
 
     <!-- ================= PANEL PENYELAMAT ================= -->
     <div id="rescueBox" class="hidden">
@@ -134,6 +134,10 @@
       <label>3️⃣ Pakai file dari HP/komputermu</label>
       <button class="btn-secondary" style="margin-top:0" onclick="document.getElementById('ownFile').click()">📁 Upload File Sendiri</button>
       <input type="file" id="ownFile" accept=".mp3,.ogg,.wav,.flac,audio/*" class="hidden">
+      <div class="orline">— atau —</div>
+      <label>4️⃣ Download pakai browser-mu sendiri (tanpa cookie, tanpa risiko)</label>
+      <p class="note" style="margin-top:0">Browser-mu sudah login Roblox — buka link download resmi di tab baru. Kalau akunmu punya akses ke audio ini, file langsung ke-download. Lalu upload file-nya via tombol 📁 di atas. Kalau yang muncul tulisan error/403 → akunmu pun tidak punya akses.</p>
+      <button id="browserDlBtn" class="btn-secondary" style="margin-top:0" onclick="downloadViaBrowser()">🌐 Buka Link Download di Browser</button>
       <div id="rescueLoading" class="loading hidden"><div class="spinner"></div><span id="rescueLoadingText">Memproses...</span></div>
     </div>
 
@@ -340,7 +344,7 @@ async function spoofAndPreview(){
   }catch(e){
     errBox.textContent='❌ '+e.message;
     errBox.classList.remove('hidden');
-    showRescue(infoName,id,e.message); // ← tidak berhenti di "gagal": tawarkan 3 jalan keluar
+    showRescue(infoName,infoCreator,id,e.message); // ← tidak berhenti di "gagal": tawarkan 4 jalan keluar
   }finally{
     btn.disabled=false;
     document.getElementById('spoofLoading').classList.add('hidden');
@@ -380,9 +384,18 @@ async function loadIntoStudio({blob,name,creator,id,format,storeUrl}){
 }
 
 // ============================================================
-// PANEL PENYELAMAT — 3 jalan keluar saat ID privat/gagal
+// PANEL PENYELAMAT — 4 jalan keluar saat ID privat/gagal
 // ============================================================
+let lastFailedId=null;
+
+function downloadViaBrowser(){
+  if(!lastFailedId) return alert('Spoof dulu!');
+  window.open('https://assetdelivery.roblox.com/v1/asset/?id='+lastFailedId,'_blank');
+}
+
 function showRescue(title,artist,id,errMsg){
+  lastFailedId=id;
+  document.getElementById('browserDlBtn').textContent='🌐 Buka Link Download di Browser (ID '+id+')';
   const box=document.getElementById('rescueBox');
   const isPrivate=/privat|not authorized|unauthorized/i.test(errMsg||'');
   document.getElementById('rescueTitle').textContent=isPrivate?`🔒 ID ${id} dikunci privat oleh pemiliknya`:`⚠️ Spoof ID ${id} gagal`;
@@ -391,7 +404,7 @@ function showRescue(title,artist,id,errMsg){
     (isPrivate?`<br>Roblox mengunci byte audionya untuk request tanpa hak akses.`:`<br>Coba langkah berikut 👇`);
   if(hasKey) html+=`<br><button class="btn-secondary" style="width:auto;padding:8px 14px;margin-top:8px" onclick="diagnoseAccess('${esc(id)}')">🔓 Diagnosa kenapa key-mu ditolak</button>`;
   else html+=`<br>💡 <b>Simpan API key-mu dulu</b> (🔑 Kredensial) — kalau link store bunyi di browser-mu, kemungkinan key-mu yang kurang izin, dan itu bisa diperbaiki!`;
-  html+=`<br><br>Lagunya tetap bisa masuk studio lewat 3 cara ini 👇`;
+  html+=`<br><br>Lagunya tetap bisa masuk studio lewat 4 cara di bawah 👇`;
   if(artist && artist!=='-') html+=`<br><button class="btn-secondary" style="width:auto;padding:8px 14px;margin-top:8px" onclick="rescueSearch(${JSON.stringify(artist).replace(/"/g,'&quot;')})">🎤 Cari karya "${esc(artist)}" (siapa tahu ada yang publik)</button>`;
   document.getElementById('rescueMsg').innerHTML=html;
   if(title) document.getElementById('rescueKeyword').value=title;
