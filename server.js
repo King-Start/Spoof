@@ -98,6 +98,16 @@ function looksLikeAudio(buf, contentType) {
   return false;
 }
 
+function failTag(name, r) {
+  let extra = '';
+  try {
+    const j = JSON.parse(r.buf.subarray(0, 600).toString('utf8'));
+    const e0 = j.errors && j.errors[0];
+    if (e0) extra = ` → Roblox ${e0.code}: ${e0.message}`;
+  } catch { /* bukan JSON */ }
+  return `${name} (HTTP ${r.status}${extra})`;
+}
+
 async function spoofDownload(assetId, apiKey = '') {
   const errors = [];
 
@@ -111,7 +121,7 @@ async function spoofDownload(assetId, apiKey = '') {
       if (looksLikeAudio(r.buf, r.contentType)) {
         return { buffer: r.buf, source: 'assetdelivery-v1' };
       }
-      errors.push(`v1 (${r.status})`);
+      errors.push(failTag('v1', r));
     } catch (e) { errors.push(`v1: ${e.message}`); }
   }
 
@@ -127,11 +137,21 @@ async function spoofDownload(assetId, apiKey = '') {
       if (looksLikeAudio(f.buf, f.contentType)) {
         return { buffer: f.buf, source: 'assetdelivery-v2' };
       }
-      errors.push(`v2-cdn (${f.status})`);
+      errors.push(failTag('v2-cdn', f));
     } else {
-      errors.push(`v2: tidak ada location (${r.status})`);
+      const e0 = j.errors && j.errors[0];
+      errors.push(e0 ? `v2 (HTTP ${r.status} → Roblox ${e0.code}: ${e0.message})` : `v2: tidak ada location (${r.status})`);
     }
   } catch (e) { errors.push(`v2: ${e.message}`); }
+
+  // 2b) assetdelivery v1 varian path /v1/assetId/{id} (sekalian dicoba)
+  try {
+    const r = await fetchBytes(`https://assetdelivery.roblox.com/v1/assetId/${assetId}`);
+    if (looksLikeAudio(r.buf, r.contentType)) {
+      return { buffer: r.buf, source: 'assetdelivery-v1b' };
+    }
+    errors.push(failTag('v1b', r));
+  } catch (e) { errors.push(`v1b: ${e.message}`); }
 
   // 3) Open Cloud asset-delivery-api — butuh API key (audio milikmu / yang diizinkan)
   if (apiKey) {
@@ -140,14 +160,19 @@ async function spoofDownload(assetId, apiKey = '') {
       if (looksLikeAudio(r.buf, r.contentType)) {
         return { buffer: r.buf, source: 'open-cloud' };
       }
-      errors.push(`open-cloud (${r.status})`);
+      errors.push(failTag('open-cloud', r));
     } catch (e) { errors.push(`open-cloud: ${e.message}`); }
   }
 
-  throw new Error(
-    `Gagal mengambil audio ID ${assetId} (${errors.join(' · ') || 'tidak ada respons'}). ` +
-    'Kemungkinan: ID bukan audio publik, audio privat, atau Roblox membatasi akses.'
+  const authFail = errors.length > 0 && errors.every((e) => /403|401|not authorized|unauthorized/i.test(e));
+  const err = new Error(
+    authFail
+      ? `Audio ID ${assetId} dikunci PRIVAT oleh pemiliknya — Roblox menolak semua jalur download (detail: ${errors.join(' · ')}).`
+      : `Gagal mengambil audio ID ${assetId} (${errors.join(' · ') || 'tidak ada respons'}). ` +
+        'Kemungkinan: ID bukan audio publik, audio privat, atau Roblox membatasi akses.'
   );
+  if (authFail) err.code = 'PRIVATE_ASSET';
+  throw err;
 }
 
 async function fetchAssetMeta(assetId) {
@@ -249,7 +274,137 @@ app.get('/api/spoof-audio/:id', async (req, res) => {
     res.setHeader('Cache-Control', 'private, max-age=3600');
     res.send(dl.buffer);
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message || 'Gagal spoof audio' });
+    res.status(500).json({ success: false, error: error.message || 'Gagal spoof audio', code: error.code || 'SPOOF_FAILED' });
+  }
+});
+
+// ============================================================
+// SEARCH AUDIO PUBLIK — GET /api/search-audio?keyword=&limit=
+// Dipakai panel penyelamat: cari salinan publik dari lagu yang privat
+// ============================================================
+app.get('/api/search-audio', async (req, res) => {
+  const keyword = (req.query.keyword || '').trim();
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 8, 1), 20);
+  if (!keyword) return res.status(400).json({ success: false, error: 'Ketik judul lagu dulu!' });
+  try {
+    const sr = await fetch(
+      `https://apis.roblox.com/toolbox-service/v1/marketplace/3?keyword=${encodeURIComponent(keyword)}&limit=${Math.min(limit * 3, 20)}&sortType=Relevance&audioTypes=Music`,
+      { headers: UA, signal: AbortSignal.timeout(20000) }
+    );
+    if (!sr.ok) {
+      return res.status(sr.status).json({
+        success: false,
+        error: sr.status === 429 ? 'Kena rate-limit Roblox (429). Tunggu sebentar.' : `Roblox search error (${sr.status}).`
+      });
+    }
+    const sdata = await sr.json();
+    // Ambil 2x lipat kandidat, lalu skor & saring sendiri (relevansi Roblox sering ngawur)
+    const ids = (sdata.data || []).map((x) => x.id).filter(Boolean).slice(0, 20);
+    if (!ids.length) return res.json({ success: true, keyword, total: 0, results: [] });
+    const dr = await fetch(
+      `https://apis.roblox.com/toolbox-service/v1/items/details?assetIds=${ids.join(',')}`,
+      { headers: UA, signal: AbortSignal.timeout(20000) }
+    );
+    const ddata = await dr.json().catch(() => ({ data: [] }));
+    const tokens = keyword.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
+    let results = (ddata.data || [])
+      .filter((item) => item.asset && item.asset.typeId === 3)
+      .map((item) => {
+        const a = item.asset;
+        const secs = Number(a.duration) || 0;
+        const name = a.name || '';
+        const artist = (a.audioDetails && a.audioDetails.artist) || (item.creator && item.creator.name) || '-';
+        const nl = name.toLowerCase(), al = artist.toLowerCase();
+        let score = 0;
+        for (const t of tokens) {
+          if (nl.includes(t)) score += 2;
+          if (al.includes(t)) score += 1;
+        }
+        return {
+          id: a.id, name, artist, secs, score,
+          duration: secs ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` : '?',
+          storeUrl: `https://create.roblox.com/store/asset/${a.id}`
+        };
+      });
+    // Kalau ada yang cocok judulnya, buang yang skor 0 (sampah sponsor). Urut: skor → durasi.
+    if (tokens.length && results.some((x) => x.score > 0)) {
+      results = results.filter((x) => x.score > 0);
+    }
+    results.sort((p, q) => (q.score - p.score) || (q.secs - p.secs));
+    results = results.slice(0, limit).map(({ secs, score, ...rest }) => rest);
+    res.json({ success: true, keyword, total: sdata.totalResults ?? results.length, results });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error?.name === 'TimeoutError' ? 'Roblox timeout. Coba lagi.' : (error.message || 'Gagal mencari') });
+  }
+});
+
+// ============================================================
+// IMPORT DARI LINK LANGSUNG — POST /api/import-url { url }
+// Server fetch URL mp3/ogg/wav (browser tidak bisa karena CORS)
+// ============================================================
+function isBlockedHost(hostname) {
+  const h = String(hostname || '').toLowerCase().replace(/\.$/, '');
+  if (!h || h === 'localhost' || h.endsWith('.localhost')) return true;
+  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(h)) {
+    const [a, b] = h.split('.').map(Number);
+    if (a === 127 || a === 10 || a === 0) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 169 && b === 254) return true;
+  }
+  if (h === '::1' || h === '[::1]' || h.startsWith('fc') || h.startsWith('fd')) return true;
+  return false;
+}
+
+app.post('/api/import-url', async (req, res) => {
+  try {
+    const raw = String((req.body || {}).url || '').trim();
+    if (!raw) return res.status(400).json({ success: false, error: 'Tempel link audio dulu!' });
+    let u;
+    try { u = new URL(raw); } catch { return res.status(400).json({ success: false, error: 'Link tidak valid!' }); }
+    if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password) {
+      return res.status(400).json({ success: false, error: 'Link harus http(s) biasa!' });
+    }
+    if (isBlockedHost(u.hostname)) {
+      return res.status(400).json({ success: false, error: 'Host ini diblokir (keamanan).' });
+    }
+
+    // Ikuti redirect manual (maks 5) agar tiap hop tervalidasi
+    let current = u.toString(), buf = null, ct = '';
+    for (let hop = 0; hop < 5; hop++) {
+      const r = await fetch(current, { headers: UA, redirect: 'manual', signal: AbortSignal.timeout(30000) });
+      if ([301, 302, 303, 307, 308].includes(r.status)) {
+        const loc = r.headers.get('location');
+        if (!loc) return res.status(400).json({ success: false, error: 'Redirect rusak dari link itu.' });
+        const next = new URL(loc, current);
+        if (!['http:', 'https:'].includes(next.protocol) || isBlockedHost(next.hostname)) {
+          return res.status(400).json({ success: false, error: 'Link redirect ke host yang diblokir.' });
+        }
+        current = next.toString();
+        continue;
+      }
+      if (!r.ok) return res.status(400).json({ success: false, error: `Link mengembalikan HTTP ${r.status}. Pastikan link file audio langsung.` });
+      ct = (r.headers.get('content-type') || '').toLowerCase();
+      const len = parseInt(r.headers.get('content-length') || '0', 10);
+      if (len > 25 * 1024 * 1024) return res.status(413).json({ success: false, error: 'File di link itu >25 MB.' });
+      buf = maybeGunzip(Buffer.from(await r.arrayBuffer()));
+      break;
+    }
+    if (!buf) return res.status(400).json({ success: false, error: 'Kebanyakan redirect (>5).' });
+    if (buf.length > 25 * 1024 * 1024) return res.status(413).json({ success: false, error: 'File audio >25 MB.' });
+    const ext = sniffAudioExt(buf);
+    if (!ext) {
+      return res.status(400).json({ success: false, error: 'Isi link bukan file audio (MP3/OGG/WAV/FLAC). Catatan: link YouTube/Spotify/TikTok BUKAN file audio langsung — pakai link file .mp3/.ogg langsung.' });
+    }
+    const fname = decodeURIComponent(u.pathname.split('/').pop() || 'audio').replace(/\.[^.]+$/, '').slice(0, 50) || 'Audio dari link';
+    res.setHeader('Content-Type', EXT_TO_MIME[ext]);
+    res.setHeader('Content-Length', buf.length);
+    res.setHeader('X-Import-Name', encodeURIComponent(fname));
+    res.setHeader('X-Import-Format', ext);
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(buf);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error?.name === 'TimeoutError' ? 'Link lambat/timeout.' : ('Gagal ambil link: ' + (error.message || 'unknown')) });
   }
 });
 
