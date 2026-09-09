@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
   <title>🦁 SirLion Uploader</title>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
@@ -17,6 +18,7 @@
     label{display:block;font-size:.8rem;color:#aaa;margin:10px 0 4px}
     input,select{width:100%;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff;font-size:.95rem}
     input:focus,select:focus{outline:none;border-color:#f7971e}
+    select option{background:#1a1a1a}
     button{width:100%;padding:13px;margin-top:12px;border-radius:8px;border:none;background:linear-gradient(45deg,#f7971e,#ffd200);color:#111;font-weight:bold;font-size:.95rem;cursor:pointer;transition:opacity .2s}
     button:hover{opacity:.88}
     button:disabled{opacity:.5;cursor:not-allowed}
@@ -46,6 +48,7 @@
     .spoof-row{display:flex;gap:10px}
     .spoof-row input{flex:1}
     .spoof-row button{margin-top:0;white-space:nowrap}
+    footer{text-align:center;color:#555;font-size:.75rem;padding:10px 0 20px}
     @media(max-width:500px){.spoof-row{flex-direction:column}}
   </style>
 </head>
@@ -64,16 +67,17 @@
     <details>
       <summary>🔑 Kredensial Open Cloud</summary>
       <label>API Key</label>
-      <input type="password" id="apiKey" placeholder="API Key (butuh asset:write)">
-      <label>User ID</label>
-      <input type="text" id="userId" placeholder="User ID Roblox">
+      <input type="password" id="apiKey" placeholder="API Key (butuh asset:read + asset:write)" autocomplete="off">
+      <label>User ID / Username</label>
+      <input type="text" id="userId" placeholder="User ID Roblox (boleh username — nanti auto-resolve)" autocomplete="off">
       <label>Group ID <span style="color:#666">(opsional)</span></label>
-      <input type="text" id="groupId" placeholder="Kosongkan kalau pribadi">
+      <input type="text" id="groupId" placeholder="Kosongkan kalau pribadi" autocomplete="off">
       <div class="row">
         <button onclick="saveKey()">💾 Simpan</button>
         <button class="btn-secondary" onclick="testKey()">🔍 Tes Kredensial</button>
       </div>
       <div id="status" style="text-align:center;margin-top:8px;color:#4dff9d;font-size:.85rem;line-height:1.6"></div>
+      <p class="note">Buat API key di <a href="https://create.roblox.com/dashboard/credentials" target="_blank">Creator Dashboard → Credentials</a> → aktifkan permission <b>asset:read</b> + <b>asset:write</b>, dan masukkan IP-mu ke allowlist.</p>
     </details>
   </section>
 
@@ -96,12 +100,12 @@
   <!-- ========================================================= -->
   <section>
     <h2>⚡ Pakai ID Langsung <span class="badge">tanpa API key</span></h2>
-    <input type="text" id="directId" placeholder="Tempel ID audio (contoh: 1836952586)">
-    <button id="checkBtn" onclick="checkId()">🔍 Cek & Buat Script</button>
+    <input type="text" id="directId" placeholder="Tempel ID audio (contoh: 140709876805704)" inputmode="numeric">
+    <button id="checkBtn" onclick="checkId()">🔍 Cek &amp; Buat Script</button>
     <div id="directLoading" class="loading hidden"><div class="spinner"></div>Mengecek asset...</div>
     <div id="directResult" class="result hidden"></div>
     <p class="note">
-      💡 ID publik → langsung bisa dipake.<br>
+      💡 ID publik → langsung bisa dipakai.<br>
       🚫 ID private milik orang lain → error permission.
     </p>
   </section>
@@ -118,9 +122,9 @@
     </div>
     <input type="file" id="fileInput" accept=".mp3,.ogg,.wav,.flac,audio/*" class="hidden">
     <label>Nama audio</label>
-    <input type="text" id="audioName" placeholder="Nama di inventory (opsional)">
+    <input type="text" id="audioName" placeholder="Nama di inventory (opsional)" maxlength="50">
     <button id="uploadBtn" onclick="uploadAudio()">🚀 Upload ke Roblox</button>
-    <div id="uploadLoading" class="loading hidden"><div class="spinner"></div>Uploading...</div>
+    <div id="uploadLoading" class="loading hidden"><div class="spinner"></div>Uploading... (Roblox butuh ±10–60 detik untuk memproses)</div>
     <div id="uploadResult" class="result hidden"></div>
   </section>
 
@@ -130,16 +134,16 @@
   <section>
     <h2>🔄 Upload ID (Spoof) <span class="badge">butuh API key</span></h2>
     <p style="color:#888;font-size:.85rem;margin-bottom:12px">
-      Masukin ID audio <b>milikmu</b> (atau yang diizinkan Roblox ke API key-mu) → download resmi via Open Cloud → upload ulang ke akun lo → <b>langsung aktif buat game-mu!</b>
+      Masukin ID audio <b>milikmu</b> (atau yang izinnya dibuka untuk API key-mu) → download resmi via Open Cloud → upload ulang ke akun lo → <b>langsung aktif buat game-mu!</b>
     </p>
     <div class="spoof-row">
-      <input type="text" id="spoofIdInput" placeholder="Masukkan ID audio (contoh: 1836952586)">
-      <button onclick="spoofAndUpload()" style="margin-top:0">🔄 Upload ID</button>
+      <input type="text" id="spoofIdInput" placeholder="Masukkan ID audio milikmu" inputmode="numeric">
+      <button id="spoofBtn" onclick="spoofAndUpload()" style="margin-top:0">🔄 Upload ID</button>
     </div>
     <div id="spoofLoading" class="loading hidden" style="margin-top:12px">
       <div class="spinner"></div>
       <p>📥 Mendownload audio dari ID asli...</p>
-      <p style="font-size:.8rem;color:#666">📤 Nanti diupload ulang ke Roblox</p>
+      <p style="font-size:.8rem;color:#666">📤 Nanti diupload ulang ke Roblox (±10–60 detik)</p>
     </div>
     <div id="spoofResult" class="result hidden"></div>
   </section>
@@ -150,7 +154,7 @@
   <section>
     <h2>📜 Generate Script</h2>
     <label>Music ID</label>
-    <input type="text" id="scriptId" placeholder="ID audio (otomatis terisi)">
+    <input type="text" id="scriptId" placeholder="ID audio (otomatis terisi)" inputmode="numeric">
     <div class="row">
       <div>
         <label>Tipe</label>
@@ -162,7 +166,7 @@
       </div>
       <div>
         <label>Volume</label>
-        <input type="number" id="volume" value="1" min="0" max="2" step="0.1">
+        <input type="number" id="volume" value="1" min="0" max="10" step="0.1">
       </div>
     </div>
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:12px">
@@ -177,6 +181,8 @@
       </div>
     </div>
   </section>
+
+  <footer>SirLion Uploader v2.1 · Open Cloud API (resmi) · Audio privat milikmu</footer>
 
 </div>
 
@@ -203,13 +209,15 @@ function saveKey(){
         uid=document.getElementById('userId').value.trim(),
         gid=document.getElementById('groupId').value.trim();
   if(!key||!uid) return alert('API Key dan User ID wajib!');
+  if(gid && !/^\d+$/.test(gid)) return alert('Group ID harus angka!');
   localStorage.setItem('key',key); localStorage.setItem('uid',uid); localStorage.setItem('gid',gid);
   document.getElementById('status').textContent='✅ Kredensial tersimpan';
 }
 
 async function testKey(){
   const key=document.getElementById('apiKey').value.trim(),
-        uid=document.getElementById('userId').value.trim();
+        uid=document.getElementById('userId').value.trim(),
+        gid=document.getElementById('groupId').value.trim();
   if(!key||!uid) return alert('Isi API Key dan User ID dulu!');
   const st=document.getElementById('status');
   st.style.color='#ffd200';
@@ -218,17 +226,17 @@ async function testKey(){
     const r=await fetch('/api/check-key',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({apiKey:key,userId:uid})
+      body:JSON.stringify({apiKey:key,userId:uid,groupId:gid})
     });
-    const d=await r.json();
-    if(!d.success){st.style.color='#ff7b7b';st.textContent='❌ '+d.error;return;}
-    st.innerHTML=d.report.map(x=>`<div style="color:${x.ok?'#4dff9d':'#ff7b7b'}">${esc(x.msg)}</div>`).join('');
-    const resolved=d.report.find(x=>x.resolvedId);
+    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
+    if(!d.success){st.style.color='#ff7b7b';st.textContent='❌ '+(d.error||'Gagal tes kredensial');return;}
+    const report=Array.isArray(d.report)?d.report:[];
+    st.innerHTML=report.map(x=>`<div style="color:${x.ok?'#4dff9d':'#ff7b7b'}">${esc(x.msg)}</div>`).join('')||'⚠️ Tidak ada hasil.';
+    const resolved=report.find(x=>x.resolvedId);
     if(resolved&&resolved.resolvedId){
       document.getElementById('userId').value=resolved.resolvedId;
       localStorage.setItem('uid',String(resolved.resolvedId));
     }
-    st.style.color=d.ok?'#4dff9d':'#ff9d4d';
     if(d.ok) st.insertAdjacentHTML('beforeend','<div style="color:#4dff9d">🎉 Kredensial siap — tinggal upload!</div>');
   }catch(e){
     st.style.color='#ff7b7b';
@@ -239,55 +247,56 @@ async function testKey(){
 // ============================================================
 // CARI LAGU
 // ============================================================
-function searchAudio(){
+async function searchAudio(){
   const kw=document.getElementById('searchKeyword').value.trim();
   if(!kw) return alert('Ketik judul lagu!');
   const btn=document.getElementById('searchBtn');
   btn.disabled=true;
   document.getElementById('searchLoading').classList.remove('hidden');
-  document.getElementById('searchResults').classList.add('hidden');
-
-  fetch('/api/search-audio?keyword='+encodeURIComponent(kw)+'&limit=10')
-  .then(r=>r.json())
-  .then(d=>{
+  const box=document.getElementById('searchResults');
+  box.classList.add('hidden');
+  try{
+    const r=await fetch('/api/search-audio?keyword='+encodeURIComponent(kw)+'&limit=10');
+    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
+    box.classList.remove('hidden');
+    if(!d.success){box.innerHTML=`<div class="result error">❌ ${esc(d.error||'Gagal mencari')}</div>`;return;}
+    const results=Array.isArray(d.results)?d.results:[];
+    if(!results.length){box.innerHTML=`<div class="result warn">😐 Tidak ada hasil untuk "${esc(kw)}"</div>`;return;}
+    const total=(d.total!=null)?d.total:results.length;
+    box.innerHTML=`<p style="font-size:.78rem;color:#888;margin-bottom:8px">${total} hasil — pilih salah satu:</p>`+
+      results.map(x=>`
+        <div class="sr-row">
+          <button class="sr-play" onclick="window.open('${x.storeUrl}','_blank')" title="Preview di Creator Store">▶</button>
+          <div class="sr-info">
+            <div class="sr-name">🎵 <a href="${x.storeUrl}" target="_blank" rel="noopener">${esc(x.name)}</a>${x.isFree?' <span style="color:#4dff9d;font-size:.7rem">FREE</span>':''}</div>
+            <div class="sr-meta">🎤 ${esc(x.artist)} · ⏱ ${esc(x.duration)} · ${esc(x.likes)} · ID: ${x.id} · <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(x.artist+' '+x.name)}" target="_blank" rel="noopener">📺 YouTube</a></div>
+          </div>
+          <button class="sr-use" onclick="useId('${x.id}')">⚡ Pakai ID</button>
+        </div>`).join('');
+  }catch(e){
+    box.classList.remove('hidden');
+    box.innerHTML=`<div class="result error">❌ ${esc(e.message)}</div>`;
+  }finally{
     btn.disabled=false;
     document.getElementById('searchLoading').classList.add('hidden');
-    const el=document.getElementById('searchResults');
-    el.classList.remove('hidden');
-    if(!d.success){el.innerHTML=`<div class="result error">❌ ${esc(d.error)}</div>`;return;}
-    if(!d.results.length){el.innerHTML=`<div class="result warn">😐 Tidak ada hasil untuk "${esc(kw)}"</div>`;return;}
-    el.innerHTML=`<p style="font-size:.78rem;color:#888;margin-bottom:8px">${d.total}+ hasil — pilih salah satu:</p>`+
-      d.results.map(r=>`
-        <div class="sr-row">
-          <button class="sr-play" onclick="window.open('${r.storeUrl}','_blank')" title="Preview di Creator Store">▶</button>
-          <div class="sr-info">
-            <div class="sr-name">🎵 <a href="${r.storeUrl}" target="_blank">${esc(r.name)}</a></div>
-            <div class="sr-meta">🎤 ${esc(r.artist)} · ⏱ ${r.duration} · ${r.likes} · ID: ${r.id} · <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(r.artist+' '+r.name)}" target="_blank">📺 YouTube</a></div>
-          </div>
-          <button class="sr-use" onclick="useId('${r.id}')">⚡ Pakai ID</button>
-        </div>`).join('');
-  })
-  .catch(e=>{btn.disabled=false;document.getElementById('searchLoading').classList.add('hidden');alert('❌ '+e.message)});
+  }
 }
 
 // ============================================================
 // CEK ID
 // ============================================================
-function checkId(){
+async function checkId(){
   const id=document.getElementById('directId').value.trim();
   if(!id) return alert('Masukkan ID!');
   if(!/^\d+$/.test(id)) return alert('ID harus angka!');
   const btn=document.getElementById('checkBtn');
   btn.disabled=true;
   document.getElementById('directLoading').classList.remove('hidden');
-  document.getElementById('directResult').classList.add('hidden');
-
-  fetch('/api/asset-info/'+id)
-  .then(r=>r.json())
-  .then(d=>{
-    btn.disabled=false;
-    document.getElementById('directLoading').classList.add('hidden');
-    const el=document.getElementById('directResult');
+  const el=document.getElementById('directResult');
+  el.classList.add('hidden');
+  try{
+    const r=await fetch('/api/asset-info/'+id);
+    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
     el.classList.remove('hidden','error','warn');
     if(d.success){
       document.getElementById('scriptId').value=id;
@@ -296,26 +305,31 @@ function checkId(){
           🎵 <strong>${esc(d.name)}</strong><br>
           🆔 ID: ${id} · ✅ Audio<br>
           👤 ${esc(d.creator||'-')}<br>
-          <a href="${d.storeUrl}" target="_blank">▶ Preview di Creator Store</a> · <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(d.name||'')}" target="_blank">📺 YouTube</a><br><br>
-          <button class="btn-secondary" onclick="useId('${id}')" style="background:#f7971e;color:#111;border:none;padding:8px 16px;border-radius:6px;font-weight:bold;cursor:pointer">📜 Buat Script</button>
+          <a href="${d.storeUrl}" target="_blank" rel="noopener">▶ Preview di Creator Store</a> · <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(d.name||'')}" target="_blank" rel="noopener">📺 YouTube</a><br><br>
+          <button class="btn-secondary" onclick="useId('${id}')" style="background:#f7971e;color:#111;border:none;padding:8px 16px;border-radius:6px;font-weight:bold;cursor:pointer;width:auto">📜 Buat Script</button>
         `;
         generateScript();
-        el.classList.add('warn');
       }else{
         el.classList.add('warn');
-        el.innerHTML=`⚠️ Bukan audio (tipe ID: ${d.assetTypeId})`;
+        el.innerHTML=`⚠️ ID ini bukan audio (tipe ID: ${esc(d.assetTypeId)}). Cari ID audio lain.`;
       }
     }else{
       el.classList.add('error');
-      el.innerHTML=`❌ ${esc(d.error)}`;
+      el.innerHTML=`❌ ${esc(d.error||'Gagal cek ID')}`;
     }
-  })
-  .catch(e=>{btn.disabled=false;document.getElementById('directLoading').classList.add('hidden');alert('❌ '+e.message)});
+  }catch(e){
+    el.classList.remove('hidden');
+    el.classList.add('error');
+    el.innerHTML=`❌ ${esc(e.message)}`;
+  }finally{
+    btn.disabled=false;
+    document.getElementById('directLoading').classList.add('hidden');
+  }
 }
 
 function useId(id){
   document.getElementById('scriptId').value=id;
-  document.getElementById('scriptId').scrollIntoView({behavior:'smooth'});
+  document.getElementById('scriptId').scrollIntoView({behavior:'smooth',block:'center'});
   generateScript();
 }
 
@@ -332,102 +346,112 @@ dropzone.addEventListener('drop',e=>setFile(e.dataTransfer.files[0]));
 
 function setFile(f){
   if(!f) return;
-  const ok=/\.(mp3|ogg|wav|flac)$/i.test(f.name)||/^audio\//.test(f.type);
+  const ok=/\.(mp3|ogg|wav|flac)$/i.test(f.name)||/^audio\//.test(f.type)||f.type==='application/ogg';
   if(!ok) return alert('File harus MP3, OGG, WAV, atau FLAC!');
-  if(f.size>20*1024*1024) return alert('Maksimal 20 MB!');
+  if(f.size>20*1024*1024) return alert('Maksimal 20 MB (aturan Roblox)!');
+  if(f.size<1000) return alert('File terlalu kecil / kosong!');
   selectedFile=f;
   const fn=document.getElementById('fileName');
   fn.textContent=`${f.name} (${(f.size/1024/1024).toFixed(2)} MB)`;
   fn.classList.remove('hidden');
-  if(!document.getElementById('audioName').value) document.getElementById('audioName').value=f.name.replace(/\.[^.]+$/,'');
+  if(!document.getElementById('audioName').value) document.getElementById('audioName').value=f.name.replace(/\.[^.]+$/,'').slice(0,50);
 }
 
-function uploadAudio(){
+async function uploadAudio(){
   const key=localStorage.getItem('key'), uid=localStorage.getItem('uid'), gid=localStorage.getItem('gid')||'';
-  if(!key||!uid) return alert('Isi & simpan kredensial dulu!');
+  if(!key||!uid) return alert('Isi & simpan kredensial dulu (buka 🔑 Kredensial)!');
   if(!selectedFile) return alert('Pilih file audio!');
   const btn=document.getElementById('uploadBtn');
   btn.disabled=true;
   document.getElementById('uploadLoading').classList.remove('hidden');
-  document.getElementById('uploadResult').classList.add('hidden');
-
-  const fd=new FormData();
-  fd.append('file',selectedFile);
-  fd.append('name',document.getElementById('audioName').value.trim()||'My Audio');
-
-  const headers={'x-api-key':key,'x-user-id':uid};
-  if(gid) headers['x-group-id']=gid;
-
-  fetch('/api/upload',{method:'POST',headers,body:fd})
-  .then(r=>r.json())
-  .then(d=>{
-    document.getElementById('uploadLoading').classList.add('hidden');
-    btn.disabled=false;
-    const el=document.getElementById('uploadResult');
+  const el=document.getElementById('uploadResult');
+  el.classList.add('hidden');
+  try{
+    const fd=new FormData();
+    fd.append('file',selectedFile);
+    fd.append('name',document.getElementById('audioName').value.trim()||'My Audio');
+    const headers={'x-api-key':key,'x-user-id':uid};
+    if(gid) headers['x-group-id']=gid;
+    const r=await fetch('/api/upload',{method:'POST',headers,body:fd});
+    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
     el.classList.remove('hidden','error');
     if(d.success){
       el.innerHTML=`
         ✅ <strong>Upload Berhasil!</strong><br>
         🎵 ${esc(d.name)}<br>
-        🆔 <strong>${d.newAssetId}</strong><br>
-        📦 ${d.size} · ${d.format}<br>
+        🆔 <strong>${esc(d.newAssetId)}</strong>${d.moderation?` · 🛡 ${esc(d.moderation)}`:''}<br>
+        📦 ${esc(d.size)} · ${esc(d.format)}<br>
         <span style="font-size:.78rem;color:#aaa">📍 Audio ada di: <b>Creator Dashboard → Development Items → Audio</b> (privat). ID-nya langsung bisa dipakai di game-mu.</span><br>
-        <button class="btn-secondary" onclick="useId('${d.newAssetId}')" style="background:#f7971e;color:#111;border:none;padding:8px 16px;border-radius:6px;font-weight:bold;cursor:pointer">📜 Buat Script</button>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-secondary" onclick="useId('${esc(d.newAssetId)}')" style="background:#f7971e;color:#111;border:none;padding:8px 16px;border-radius:6px;font-weight:bold;cursor:pointer;width:auto">📜 Buat Script</button>
+          <button class="btn-secondary" onclick="copyId('${esc(d.newAssetId)}')" style="background:rgba(255,255,255,.1);color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;width:auto">📋 Copy ID</button>
+        </div>
       `;
       document.getElementById('scriptId').value=d.newAssetId;
     }else{
       el.classList.add('error');
-      el.innerHTML=`❌ ${esc(d.error)}`;
+      el.innerHTML=`❌ ${esc(d.error||'Gagal upload')}`;
     }
-  })
-  .catch(e=>{document.getElementById('uploadLoading').classList.add('hidden');btn.disabled=false;alert('❌ '+e.message)});
+  }catch(e){
+    el.classList.remove('hidden');
+    el.classList.add('error');
+    el.innerHTML=`❌ ${esc(e.message)}`;
+  }finally{
+    document.getElementById('uploadLoading').classList.add('hidden');
+    btn.disabled=false;
+  }
 }
 
 // ============================================================
 // SPOOF UPLOAD (Upload ID)
 // Download resmi via Open Cloud — Roblox yang menentukan izin.
-// Audio milikmu / yang diizinkan ke API key-mu → bisa di-upload ulang.
+// Audio milikmu / yang izinnya dibuka → bisa di-upload ulang.
 // Audio privat orang lain → Roblox tolak (403).
 // ============================================================
-function spoofAndUpload(){
+async function spoofAndUpload(){
   const assetId=document.getElementById('spoofIdInput').value.trim();
   if(!assetId) return alert('Masukkan ID audio!');
   if(!/^\d+$/.test(assetId)) return alert('ID harus angka!');
   const key=localStorage.getItem('key'), uid=localStorage.getItem('uid'), gid=localStorage.getItem('gid')||'';
-  if(!key||!uid) return alert('Simpan kredensial dulu!');
-
+  if(!key||!uid) return alert('Simpan kredensial dulu (buka 🔑 Kredensial)!');
+  const btn=document.getElementById('spoofBtn');
+  btn.disabled=true;
   document.getElementById('spoofLoading').classList.remove('hidden');
-  document.getElementById('spoofResult').classList.add('hidden');
-
-  fetch('/api/spoof-upload',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':key,'x-user-id':uid,'x-group-id':gid},
-    body:JSON.stringify({assetId})
-  })
-  .then(r=>r.json())
-  .then(d=>{
-    document.getElementById('spoofLoading').classList.add('hidden');
-    const el=document.getElementById('spoofResult');
+  const el=document.getElementById('spoofResult');
+  el.classList.add('hidden');
+  try{
+    const r=await fetch('/api/spoof-upload',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'x-user-id':uid,'x-group-id':gid},
+      body:JSON.stringify({assetId})
+    });
+    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
     el.classList.remove('hidden','error');
     if(d.success){
       el.innerHTML=`
         ✅ <strong>Upload Berhasil! ⚡ Langsung aktif di game-mu!</strong><br>
         🎵 ${esc(d.name)}<br>
-        🔄 ${d.originalAssetId} → <strong style="color:#4dff9d">${d.newAssetId}</strong><br>
-        📦 ${d.size} · ${d.format}<br>
+        🔄 ${esc(d.originalAssetId)} → <strong style="color:#4dff9d">${esc(d.newAssetId)}</strong>${d.moderation?` · 🛡 ${esc(d.moderation)}`:''}<br>
+        📦 ${esc(d.size)} · ${esc(d.format)}<br>
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn-secondary" onclick="useId('${d.newAssetId}')" style="background:#f7971e;color:#111;border:none;padding:8px 16px;border-radius:6px;font-weight:bold;cursor:pointer">📜 Buat Script</button>
-          <button class="btn-secondary" onclick="copyId('${d.newAssetId}')" style="background:rgba(255,255,255,.1);color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer">📋 Copy ID</button>
+          <button class="btn-secondary" onclick="useId('${esc(d.newAssetId)}')" style="background:#f7971e;color:#111;border:none;padding:8px 16px;border-radius:6px;font-weight:bold;cursor:pointer;width:auto">📜 Buat Script</button>
+          <button class="btn-secondary" onclick="copyId('${esc(d.newAssetId)}')" style="background:rgba(255,255,255,.1);color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;width:auto">📋 Copy ID</button>
         </div>
       `;
       document.getElementById('scriptId').value=d.newAssetId;
       generateScript();
     }else{
       el.classList.add('error');
-      el.innerHTML=`❌ ${esc(d.error)}`;
+      el.innerHTML=`❌ ${esc(d.error||'Gagal upload ID')}`;
     }
-  })
-  .catch(e=>{document.getElementById('spoofLoading').classList.add('hidden');alert('❌ '+e.message)});
+  }catch(e){
+    el.classList.remove('hidden');
+    el.classList.add('error');
+    el.innerHTML=`❌ ${esc(e.message)}`;
+  }finally{
+    document.getElementById('spoofLoading').classList.add('hidden');
+    btn.disabled=false;
+  }
 }
 
 function copyId(id){navigator.clipboard.writeText(id).then(()=>alert('✅ ID tersalin: '+id)).catch(()=>alert('ID: '+id));}
@@ -435,31 +459,35 @@ function copyId(id){navigator.clipboard.writeText(id).then(()=>alert('✅ ID ter
 // ============================================================
 // GENERATE SCRIPT
 // ============================================================
-function generateScript(){
+async function generateScript(){
   const id=document.getElementById('scriptId').value.trim();
   if(!id) return alert('Masukkan Music ID!');
-  fetch('/api/generate-script',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      musicId:id,
-      volume:parseFloat(document.getElementById('volume').value)||1,
-      loop:document.getElementById('loop').checked,
-      mode:document.getElementById('mode').value
-    })
-  })
-  .then(r=>r.json())
-  .then(d=>{
-    if(!d.success) return alert('Gagal: '+d.error);
+  if(!/^\d+$/.test(id)) return alert('Music ID harus angka!');
+  try{
+    const r=await fetch('/api/generate-script',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        musicId:id,
+        volume:parseFloat(document.getElementById('volume').value)||1,
+        loop:document.getElementById('loop').checked,
+        mode:document.getElementById('mode').value
+      })
+    });
+    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
+    if(!d.success) return alert('Gagal: '+(d.error||'unknown'));
     currentScript=d.script;
     document.getElementById('scriptCode').textContent=d.script;
     document.getElementById('scriptOutput').classList.remove('hidden');
-  })
-  .catch(e=>alert('❌ '+e.message));
+  }catch(e){alert('❌ '+e.message);}
 }
 
-function copyScript(){navigator.clipboard.writeText(currentScript).then(()=>alert('✅ Script tersalin!'));}
+function copyScript(){
+  if(!currentScript) return alert('Generate dulu!');
+  navigator.clipboard.writeText(currentScript).then(()=>alert('✅ Script tersalin!')).catch(()=>alert('Gagal copy — blok manual di kotak script.'));
+}
 function downloadScript(){
+  if(!currentScript) return alert('Generate dulu!');
   const blob=new Blob([currentScript],{type:'text/plain'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
@@ -473,5 +501,5 @@ function downloadScript(){
 // ============================================================
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a38551309fc30786',t:'MTc4ODk0NzcyNA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a385acc40c22183f',t:'MTc4ODk1MTQ3NQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
