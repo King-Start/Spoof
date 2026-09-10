@@ -320,7 +320,7 @@ async function fetchAssetMeta(assetId) {
 app.get('/api/health', (req, res) => {
   res.json({
     status: '🦁 SirLion Audio Studio running!',
-    version: '1.4.2',
+    version: '1.4.3',
     node: process.version,
     ffmpeg: FFMPEG_BIN ? true : false,
     bins: BIN_INFO,
@@ -612,6 +612,27 @@ function looksLikeRbxm(buf) {
   return head.startsWith('<roblox!') || head.startsWith('<roblox') || head.startsWith('<?xml');
 }
 
+async function animationBytesFromResponse(r) {
+  if (!r || !r.ok) return null;
+  if (looksLikeRbxm(r.buf)) return r.buf;
+  // Open Cloud Asset Delivery mengembalikan JSON berisi signed CDN location,
+  // bukan selalu byte RBXM langsung.
+  try {
+    const j = JSON.parse(r.buf.toString('utf8'));
+    const loc = j?.locations?.[0]?.location || j?.location || null;
+    if (!loc) return null;
+    const u = new URL(loc);
+    if (!(u.hostname === 'rbxcdn.com' || u.hostname.endsWith('.rbxcdn.com'))) {
+      throw new Error('lokasi asset bukan CDN Roblox');
+    }
+    const cdn = await fetchBytes(loc);
+    return cdn.ok && looksLikeRbxm(cdn.buf) ? cdn.buf : null;
+  } catch (e) {
+    if (/bukan CDN Roblox/.test(e.message)) throw e;
+    return null;
+  }
+}
+
 async function downloadAnimation(assetId, apiKey = '') {
   const headers = apiKey ? { 'x-api-key': apiKey } : {};
   const attempts = [
@@ -624,14 +645,15 @@ async function downloadAnimation(assetId, apiKey = '') {
     if (url.includes('apis.roblox.com') && !apiKey) continue;
     try {
       const r = await fetchBytes(url, h);
-      if (r.ok && looksLikeRbxm(r.buf)) {
-        if (r.buf.length > 20 * 1024 * 1024) throw new Error('Animasi >20 MB.');
-        return r.buf;
+      const buf = await animationBytesFromResponse(r);
+      if (buf) {
+        if (buf.length > 20 * 1024 * 1024) throw new Error('Animasi >20 MB.');
+        return buf;
       }
-      errors.push(`HTTP ${r.status}`);
+      errors.push(r.ok ? 'HTTP 200 tanpa lokasi/RBXM' : `HTTP ${r.status}`);
     } catch (e) { errors.push(e.message); }
   }
-  throw new Error(`Source RBXM ditolak Roblox (${errors.join(' · ') || 'akses ditolak'}). Edit API key lalu tambahkan legacy-assets → legacy-asset:manage, selain assets → asset:read + asset:write. Animasi privat orang lain tetap tidak dapat diambil.`);
+  throw new Error(`Source RBXM ditolak Roblox (${errors.join(' · ') || 'akses ditolak'}). Pastikan key memiliki assets:read + asset:write dan legacy-assets:legacy-asset:manage serta key dibuat untuk pemilik animasi.`);
 }
 
 async function animationSourceAvailable(assetId, apiKey = '') {
@@ -646,13 +668,11 @@ async function animationSourceAvailable(assetId, apiKey = '') {
   // Jalur Open Cloud memerlukan legacy-assets:legacy-asset:manage.
   if (apiKey) {
     try {
-      const r = await fetch(`https://apis.roblox.com/asset-delivery-api/v1/assetId/${assetId}`, {
-        headers: { ...UA, 'x-api-key': apiKey }, redirect: 'follow', signal: AbortSignal.timeout(20000)
-      });
-      if (r.ok) {
-        const buf = maybeGunzip(Buffer.from(await r.arrayBuffer()));
-        return looksLikeRbxm(buf);
-      }
+      const r = await fetchBytes(
+        `https://apis.roblox.com/asset-delivery-api/v1/assetId/${assetId}`,
+        { 'x-api-key': apiKey }
+      );
+      return Boolean(await animationBytesFromResponse(r));
     } catch { /* terkunci */ }
   }
   return false;
@@ -1177,5 +1197,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🦁 SirLion Audio Studio v1.4.2 running on port ${PORT}`);
+  console.log(`🦁 SirLion Audio Studio v1.4.3 running on port ${PORT}`);
 });
