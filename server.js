@@ -29,44 +29,99 @@ const uploadBig = multer({ storage: multer.memoryStorage(), limits: { fileSize: 
 // ============================================================
 // FFMPEG — deteksi sekali saat startup
 // ============================================================
-let FFMPEG_BIN = null;
-(function detectFfmpeg() {
-  try {
-    const staticBin = require('ffmpeg-static');
-    if (staticBin && fs.existsSync(staticBin)) FFMPEG_BIN = staticBin;
-  } catch { /* ffmpeg-static tidak terinstall */ }
-  if (!FFMPEG_BIN) {
-    try {
-      const r = spawnSync('ffmpeg', ['-version'], { timeout: 5000 });
-      if (r.status === 0) FFMPEG_BIN = 'ffmpeg';
-    } catch { /* tidak ada system ffmpeg */ }
+// ============================================================
+// BINARY DETECTION (ffmpeg + yt-dlp) — dengan diagnosa & self-heal
+// Prioritas: npm-bundled → system PATH → (yt-dlp) self-install saat dibutuhkan
+// ============================================================
+const BIN_INFO = {
+  ffmpeg: { ok: false, path: null, error: 'belum dicek' },
+  ytdlp: { ok: false, path: null, error: 'belum dicek' }
+};
+
+function checkBin(p, verArgs) {
+  if (/[/\\]/.test(p)) {
+    if (!fs.existsSync(p)) return { ok: false, error: 'file tidak ada' };
+    try { fs.chmodSync(p, 0o755); } catch {} // self-heal: permission sering hilang di hosting
+    try { fs.accessSync(p, fs.constants.X_OK); }
+    catch (e) { return { ok: false, error: 'tidak executable: ' + e.message }; }
   }
-  console.log(FFMPEG_BIN ? `🎬 ffmpeg OK: ${FFMPEG_BIN}` : '⚠️ ffmpeg TIDAK ADA — /api/convert nonaktif (frontend fallback render WAV)');
+  try {
+    const va = verArgs || ['--version'];
+    const r = spawnSync(p, va, { timeout: 10000 });
+    if (r && r.status === 0) return { ok: true };
+    const msg = r && (r.stderr || r.stdout) ? (r.stderr || r.stdout).toString().slice(0, 150) : 'no output';
+    return { ok: false, error: `${va.join(' ')} gagal (exit ${r && r.status}): ${msg}` };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+function detectBin(label, candidates, verArgs) {
+  const errs = [];
+  for (const c of candidates) {
+    if (!c) continue;
+    const r = checkBin(c, verArgs);
+    if (r.ok) {
+      BIN_INFO[label] = { ok: true, path: c, error: null };
+      return c;
+    }
+    errs.push(`${c}: ${r.error}`);
+  }
+  BIN_INFO[label] = { ok: false, path: null, error: errs.join(' | ') || 'tidak ada kandidat' };
+  return null;
+}
+
+let FFMPEG_BIN = null;
+let YTDLP_BIN = null;
+(function detectBins() {
+  let staticFfmpeg = null;
+  try { staticFfmpeg = require('ffmpeg-static'); } catch {}
+  // ffmpeg (semua build incl. static) pakai single-dash -version; --version bisa exit 8
+  FFMPEG_BIN = detectBin('ffmpeg', [staticFfmpeg, 'ffmpeg'], ['-version']);
+  YTDLP_BIN = detectBin('ytdlp', [
+    path.join(__dirname, 'node_modules', 'yt-dlp-exec', 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'),
+    'yt-dlp'
+  ]);
+  console.log(FFMPEG_BIN ? `🎬 ffmpeg OK: ${FFMPEG_BIN}` : `⚠️ ffmpeg TIDAK ADA (${BIN_INFO.ffmpeg.error})`);
+  console.log(YTDLP_BIN ? `📺 yt-dlp OK: ${YTDLP_BIN}` : `⚠️ yt-dlp TIDAK ADA (${BIN_INFO.ytdlp.error}) — self-install saat dibutuhkan`);
 })();
 
-// ============================================================
-// YT-DLP — deteksi sekali saat startup
-// ============================================================
-let YTDLP_BIN = null;
-(function detectYtdlp() {
-  const cands = [
-    path.join(__dirname, 'node_modules', 'yt-dlp-exec', 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp')
-  ];
-  for (const c of cands) {
-    try {
-      fs.accessSync(c, fs.constants.X_OK);
-      const r = spawnSync(c, ['--version'], { timeout: 10000 });
-      if (r.status === 0) { YTDLP_BIN = c; break; }
-    } catch { /* lanjut */ }
+// Self-install yt-dlp saat endpoint YT dipanggil tapi binary tidak ada.
+// (menyelamatkan deploy yang postinstall-nya gagal / tercache tanpa binary)
+let ytdlpInstallPromise = null;
+async function ensureYtdlp() {
+  if (YTDLP_BIN) return YTDLP_BIN;
+  if (!ytdlpInstallPromise) {
+    ytdlpInstallPromise = (async () => {
+      // Coba deteksi ulang dulu (siapa tahu PATH berubah)
+      const found = detectBin('ytdlp', [
+        path.join(__dirname, 'node_modules', 'yt-dlp-exec', 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'),
+        'yt-dlp'
+      ]);
+      if (found) { YTDLP_BIN = found; return found; }
+      // Download binary resmi yt-dlp (~30 MB) ke tmpdir
+      const asset = process.platform === 'win32' ? 'yt-dlp.exe' : process.platform === 'darwin' ? 'yt-dlp_macos' : 'yt-dlp_linux';
+      const url = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${asset}`;
+      const dest = path.join(os.tmpdir(), `sirlion-${asset}`);
+      console.log(`📥 yt-dlp tidak ada — download dari ${url} ...`);
+      const r = await fetch(url, { headers: UA, redirect: 'follow', signal: AbortSignal.timeout(240000) });
+      if (!r.ok) throw new Error(`download yt-dlp gagal (HTTP ${r.status})`);
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length < 5 * 1024 * 1024) throw new Error('file yt-dlp terlalu kecil (download rusak?)');
+      fs.writeFileSync(dest, buf);
+      fs.chmodSync(dest, 0o755);
+      const chk = checkBin(dest);
+      if (!chk.ok) throw new Error('binary hasil download tidak jalan: ' + chk.error);
+      YTDLP_BIN = dest;
+      BIN_INFO.ytdlp = { ok: true, path: dest, error: null };
+      console.log(`📺 yt-dlp self-install OK: ${dest}`);
+      return dest;
+    })().catch((e) => {
+      ytdlpInstallPromise = null; // boleh coba lagi di request berikut
+      BIN_INFO.ytdlp = { ok: false, path: null, error: 'self-install gagal: ' + e.message };
+      throw e;
+    });
   }
-  if (!YTDLP_BIN) {
-    try {
-      const r = spawnSync('yt-dlp', ['--version'], { timeout: 10000 });
-      if (r.status === 0) YTDLP_BIN = 'yt-dlp';
-    } catch { /* tidak ada system yt-dlp */ }
-  }
-  console.log(YTDLP_BIN ? `📺 yt-dlp OK: ${YTDLP_BIN}` : '⚠️ yt-dlp TIDAK ADA — /api/yt-* nonaktif (npm i yt-dlp-exec)');
-})();
+  return ytdlpInstallPromise;
+}
 
 app.disable('x-powered-by');
 app.use(cors());
@@ -262,6 +317,7 @@ app.get('/api/health', (req, res) => {
     node: process.version,
     ffmpeg: FFMPEG_BIN ? true : false,
     ytdlp: YTDLP_BIN ? true : false,
+    bins: BIN_INFO,
     timestamp: new Date().toISOString()
   });
 });
@@ -703,8 +759,10 @@ function formatViews(n) {
 
 // GET /api/yt-search?q=&limit= — cari lagu di YouTube (tanpa API key Google)
 app.get('/api/yt-search', async (req, res) => {
-  if (!YTDLP_BIN) {
-    return res.status(501).json({ success: false, needYtdlp: true, error: 'Server tanpa yt-dlp. Install: npm i yt-dlp-exec lalu restart.' });
+  try {
+    await ensureYtdlp();
+  } catch (e) {
+    return res.status(501).json({ success: false, needYtdlp: true, error: 'Server tanpa yt-dlp (' + e.message + '). Cek /api/health untuk detail.' });
   }
   const q = (req.query.q || '').trim();
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 8, 1), 15);
@@ -736,8 +794,10 @@ app.get('/api/yt-search', async (req, res) => {
 
 // POST /api/yt-import { url | videoId } — download bestaudio → MP3 → binary
 app.post('/api/yt-import', async (req, res) => {
-  if (!YTDLP_BIN) {
-    return res.status(501).json({ success: false, needYtdlp: true, error: 'Server tanpa yt-dlp. Install: npm i yt-dlp-exec lalu restart.' });
+  try {
+    await ensureYtdlp();
+  } catch (e) {
+    return res.status(501).json({ success: false, needYtdlp: true, error: 'Server tanpa yt-dlp (' + e.message + '). Cek /api/health untuk detail.' });
   }
   if (!FFMPEG_BIN) {
     return res.status(501).json({ success: false, error: 'Server tanpa ffmpeg (butuh untuk transcode). Install: npm i ffmpeg-static.' });
