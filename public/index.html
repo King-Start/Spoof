@@ -226,7 +226,7 @@
     </div>
     <div id="animLoading" class="loading hidden"><div class="spinner"></div><span id="animLoadingText">Memproses animasi...</span></div>
     <div id="animResult" class="result hidden"></div>
-    <p class="note">Membutuhkan API Key dengan izin <b>Assets: Read + Write</b>. Animasi diunduh sebagai RBXM resmi dari Roblox lalu diupload ke akun/grupmu. Gunakan hanya animasi milikmu atau yang diizinkan untuk disalin.</p>
+    <p class="note">Membutuhkan API Key dengan izin <b>Assets: Read + Write</b>. Hanya hasil bertanda <b>📦 Source tersedia</b> yang dapat direupload. Animasi dengan source terkunci tetap bisa dipakai memakai ID aslinya bila Roblox mengizinkan. Gunakan hanya animasi milikmu atau yang diizinkan untuk disalin.</p>
   </section>
 
   <!-- ========================================================= -->
@@ -895,11 +895,13 @@ async function animationSearch(){
     const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
     if(!d.success) throw new Error(d.error||'Pencarian gagal');
     if(!d.results?.length){box.innerHTML='<div class="result warn">Tidak ada animasi yang ditemukan.</div>';return;}
-    box.innerHTML=d.results.map(x=>`<div class="result" style="margin-top:9px">
-      <b>🕺 ${esc(x.name)}</b><br><span class="note">👤 ${esc(x.creator)} · ID: ${esc(x.id)} ${x.publicDomain?'· ✅ Public Domain':''}</span>
+    box.innerHTML=d.results.map(x=>`<div class="result ${x.downloadable?'':'warn'}" style="margin-top:9px">
+      <b>🕺 ${esc(x.name)}</b><br><span class="note">👤 ${esc(x.creator)} · ID: ${esc(x.id)} ${x.publicDomain?'· ✅ Bebas dipakai':''} · ${x.downloadable?'📦 Source tersedia':'🔒 Source RBXM terkunci'}</span>
       <div class="row" style="margin-top:8px">
         <button style="margin-top:0" onclick="copyId('${x.id}')">📋 Copy ID</button>
-        <button style="margin-top:0" onclick="animationReupload('${x.id}','${encodeURIComponent(x.name)}')">♻️ Reupload</button>
+        ${x.downloadable
+          ?`<button style="margin-top:0" onclick="animationReupload('${x.id}','${encodeURIComponent(x.name)}')">♻️ Reupload</button>`
+          :`<button style="margin-top:0;opacity:.45" disabled>🔒 Tidak bisa reupload</button>`}
       </div>
     </div>`).join('');
   }catch(e){box.innerHTML=`<div class="result error">❌ ${esc(e.message)}</div>`;}
@@ -1032,5 +1034,5 @@ function fmtTime(sec){
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a38bac4a8eb4b58c',t:'MTc4OTAxNDM3MA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a38bbe216ea39332',t:'MTc4OTAxNTEwMQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
