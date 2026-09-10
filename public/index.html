@@ -208,34 +208,7 @@
   </section>
 
   <!-- ========================================================= -->
-  <!-- 4. YOUTUBE IMPORT -->
-  <!-- ========================================================= -->
-  <section>
-    <h2>🎬 YouTube Import <span class="badge">baru</span></h2>
-    <label>Cari lagu di YouTube</label>
-    <div class="row">
-      <input type="text" id="ytKeyword" placeholder="Judul lagu / artis" onkeydown="if(event.key==='Enter')ytSearch()" style="flex:2">
-      <button id="ytSearchBtn" style="margin-top:0" onclick="ytSearch()">🔎 Cari</button>
-    </div>
-    <div id="ytResults"></div>
-    <div class="orline">— atau —</div>
-    <label>Tempel link YouTube langsung</label>
-    <div class="row">
-      <input type="text" id="ytUrl" placeholder="https://www.youtube.com/watch?v=..." onkeydown="if(event.key==='Enter')ytImportDirect()" style="flex:2">
-      <button id="ytImportBtn" style="margin-top:0" onclick="ytImportDirect()">🔗 Ambil Audio</button>
-    </div>
-    <div id="ytLoading" class="loading hidden"><div class="spinner"></div><span id="ytLoadingText">Mengambil audio...</span></div>
-    <div id="ytBrowserFallback" class="result warn hidden">
-      <b>🛡️ YouTube memblokir IP Railway.</b><br>
-      Gunakan converter di browser, download MP3, lalu masukkan hasilnya lewat <b>📁 Upload Manual</b> di atas.
-      <a id="ytBrowserFallbackLink" href="#" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;margin-top:10px;padding:11px;border-radius:8px;background:#f7a51e;color:#111;font-weight:bold;text-decoration:none">🌐 Buka YTMP3 untuk video ini</a>
-      <small style="display:block;margin-top:8px;color:#aaa">Situs pihak ketiga dan mungkin menampilkan iklan. Jangan masukkan kredensial Roblox. Gunakan hanya untuk audio yang kamu miliki/diizinkan.</small>
-    </div>
-    <p class="note">⏱ Maks <b>7 menit</b> (aturan Roblox) · 🚫 Live/privat/dibatasi umur tidak bisa diambil · 🙏 Pakai lagu yang kamu punya haknya ya · 💡 Jika IP server diblokir, tombol fallback browser akan muncul otomatis.</p>
-  </section>
-
-  <!-- ========================================================= -->
-  <!-- 5. GENERATE SCRIPT -->
+  <!-- 4. GENERATE SCRIPT -->
   <!-- ========================================================= -->
   <section>
     <h2>📜 Generate Script</h2>
@@ -869,87 +842,6 @@ function useId(id){
   document.getElementById('scriptId').value=id;
   document.getElementById('scriptId').scrollIntoView({behavior:'smooth',block:'center'});
   generateScript();
-}
-
-// ============================================================
-// YOUTUBE: SEARCH + IMPORT → masuk studio
-// ============================================================
-async function ytSearch(){
-  const q=document.getElementById('ytKeyword').value.trim();
-  if(!q) return alert('Ketik judul lagu!');
-  const btn=document.getElementById('ytSearchBtn');
-  btn.disabled=true;
-  const box=document.getElementById('ytResults');
-  box.innerHTML='<p class="note">🔎 Mencari di YouTube...</p>';
-  try{
-    const r=await fetch('/api/yt-search?q='+encodeURIComponent(q)+'&limit=8');
-    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
-    if(!d.success){box.innerHTML=`<div class="result error">❌ ${esc(d.error||'Gagal mencari')}</div>`;return;}
-    const results=Array.isArray(d.results)?d.results:[];
-    if(!results.length){box.innerHTML=`<div class="result warn">😐 Tidak ketemu "${esc(q)}". Coba kata kunci lain.</div>`;return;}
-    box.innerHTML=`<p class="note">${results.length} hasil — klik ⬇️ Ambil (maks 7 menit):</p>`+
-      results.map(x=>{
-        const tooLong=x.durationSec&&x.durationSec>7*60;
-        return `
-        <div class="sr-row">
-          <img src="${x.thumb}" alt="" loading="lazy" style="width:72px;height:40px;object-fit:cover;border-radius:6px;flex-shrink:0" onerror="this.style.display='none'">
-          <div class="sr-info">
-            <div class="sr-name">🎵 ${esc(x.title)}</div>
-            <div class="sr-meta">📺 ${esc(x.channel)} · ⏱ ${esc(x.duration)}${x.views?' · 👁 '+esc(x.views):''}${tooLong?' · ⚠️ &gt;7 mnt':''}</div>
-          </div>
-          <button class="sr-use" onclick="ytImport('${x.id}')" ${tooLong?'disabled style="opacity:.4"':''}>⬇️ Ambil</button>
-        </div>`;}).join('');
-  }catch(e){box.innerHTML=`<div class="result error">❌ ${esc(e.message)}</div>`;}
-  finally{btn.disabled=false;}
-}
-
-function ytImportDirect(){ ytImport(document.getElementById('ytUrl').value.trim()); }
-
-function youtubeVideoId(v){
-  const s=String(v||'').trim();
-  if(/^[a-zA-Z0-9_-]{11}$/.test(s)) return s;
-  const m=s.match(/(?:youtube\.com\/(?:watch\?.*v=|shorts\/|live\/|embed\/)|youtu\.be\/|music\.youtube\.com\/watch\?.*v=)([a-zA-Z0-9_-]{11})/);
-  return m?m[1]:'';
-}
-function showYtBrowserFallback(v){
-  const vid=youtubeVideoId(v);
-  const panel=document.getElementById('ytBrowserFallback');
-  const link=document.getElementById('ytBrowserFallbackLink');
-  // YTMP3 membaca video ID dari hash URL lalu memulai konversi di browser.
-  link.href=vid?'https://id.ytmp3.mobi/vkO/#'+encodeURIComponent(vid):'https://id.ytmp3.mobi/vkO/';
-  panel.classList.remove('hidden');
-  panel.scrollIntoView({behavior:'smooth',block:'center'});
-}
-
-async function ytImport(idOrUrl){
-  const v=(idOrUrl||'').trim();
-  if(!v) return alert('Tempel link YouTube dulu!');
-  document.getElementById('ytBrowserFallback').classList.add('hidden');
-  document.getElementById('ytLoading').classList.remove('hidden');
-  document.getElementById('ytLoadingText').textContent='⬇️ Download + transcode MP3... (±10–60 detik)';
-  try{
-    const r=await fetch('/api/yt-import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:v})});
-    const ct=r.headers.get('content-type')||'';
-    if(!r.ok||ct.includes('json')){
-      const e=await r.json().catch(()=>({}));
-      throw new Error(e.error||`Gagal ambil YouTube (${r.status})`);
-    }
-    const blob=await r.blob();
-    const vid=r.headers.get('X-Import-VideoId')||'';
-    await loadIntoStudio({
-      blob,
-      name:decodeURIComponent(r.headers.get('X-Import-Name')||'')||'YouTube Audio',
-      creator:decodeURIComponent(r.headers.get('X-Import-Creator')||'')||'YouTube',
-      id:null, format:'mp3',
-      storeUrl:vid?`https://www.youtube.com/watch?v=${vid}`:''
-    });
-  }catch(e){
-    if(/verifikasi bot|membatasi IP|not a bot/i.test(e.message||'')){
-      showYtBrowserFallback(v);
-      alert('🛡️ YouTube memblokir IP Railway. Tombol fallback YTMP3 sudah muncul — download MP3 di browser, lalu pilih lewat Upload Manual.');
-    }else alert('❌ '+e.message);
-  }
-  finally{document.getElementById('ytLoading').classList.add('hidden');}
 }
 
 // ============================================================
