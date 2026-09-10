@@ -1,4 +1,4 @@
-# 🦁 SirLion Audio Studio v1.2.0
+# 🦁 SirLion Audio Studio v1.5.1
 
 **Spoof → Edit → Convert → Upload → Generate Script.** Semua dalam satu web.
 
@@ -8,9 +8,11 @@
 2. **Panel kontrol** muncul: Play/Pause + progress, slider **Speed** (0.5–2x), **Pitch** (−12…+12 st), **Volume** (0–200%), semua real-time (Web Audio API).
 3. **Format** MP3/OGG/WAV → **🔄 Convert** (backend ffmpeg: `atempo` + `rubberband` + `volume` + transcode).
 4. **🚀 Upload Ulang (Instant Approve!)** — convert otomatis dulu bila pengaturan berubah, lalu upload via Open Cloud. ID baru langsung tampil + tombol Copy & Generate Script.
-5. **📜 Generate Script** — Lua client/server/GUI + syntax highlight + copy/download.
+5. **🕺 Spoof Animasi** — cari Animation publik atau masukkan ID → download RBXM resmi → reupload ke akun/grup pengguna.
+6. **📦 Upload Model** — pilih `.rbxm`/`.rbxmx` → upload sebagai Model/package ke akun/grup pengguna.
+7. **📜 Generate Script** — Lua client/server/GUI + syntax highlight + copy/download.
 
-Upload butuh kredensial (API key `asset:read` + `asset:write`, User ID). Spoof + preview + convert **tanpa key**.
+Upload audio maupun animasi butuh kredensial (API key `asset:read` + `asset:write`, User ID). Spoof + preview + convert **tanpa key**.
 
 ## Cara jalanin
 
@@ -66,6 +68,45 @@ GET /api/spoof-audio/:id
 | POST | `/api/import-url` (`{url}`) | Ambil file audio dari link langsung |
 | POST | `/api/diagnose-access` (`{assetId}`, header key) | Diagnosa langkah-demi-langkah kenapa key ditolak |
 | GET | `/api/spoof-smart/:id` | ID privat → otomatis pakai salinan publik yang bunyi (dipakai otomatis saat spoof biasa gagal) |
+| GET | `/api/search-animation?keyword=&limit=` | Cari Animation publik di Creator Store |
+| POST | `/api/reupload-animation/:id` | Download RBXM publik → upload sebagai Animation baru |
+| POST | `/api/upload-model` | Upload file RBXM/RBXMX sebagai Model/package baru |
+
+## Upload Model RBXM 📦
+
+Panel upload manual menerima `.rbxm` dan `.rbxmx` hingga 20 MB, memvalidasi header
+file Roblox, lalu menguploadnya dengan `assetType: Model` melalui Open Cloud.
+Target akun atau grup mengikuti panel Kredensial. Roblox memproses Model RBXM sebagai
+model/package. Selalu periksa Script yang terdapat di model sebelum digunakan di game.
+
+## Spoof Animasi 🕺
+
+Panel terpisah dengan pintasan **Dance / Emote / Idle**, pencarian berdasarkan nama,
+atau ID Animation langsung. Tombol **Reupload** mengambil source `.rbxm` resmi,
+memindainya dengan parser RBXM berlisensi MIT, menghapus hanya attribute
+`MaxPartTranslation`, mendeteksi rig R6/R15, lalu membuat Animation baru melalui
+Open Cloud Assets API.
+
+- Kredensial menyediakan **dua kolom API key terpisah** agar izin audio/model tidak
+  bercampur dengan animasi. Key utama dipakai hanya untuk Audio & Model; key khusus
+  animasi dipakai hanya untuk pencarian, download, dan reupload Animation.
+- Key khusus animasi harus memiliki **assets: asset:read + asset:write** dan
+  **legacy-assets: legacy-asset:manage**. Tombol **Tes Animasi** memeriksa endpoint
+  Asset Delivery yang membutuhkan izin legacy; tanpa itu Roblox membalas 403.
+- Target dapat berupa akun pengguna atau grup sesuai Kredensial.
+- Hanya ID bertipe Animation (`AssetTypeId 24`) yang diterima.
+- Maksimum file 20 MB sesuai batas Open Cloud.
+- Hasil pencarian memeriksa Asset Delivery: tombol Reupload hanya aktif bila source RBXM tersedia.
+- Status Public Domain tidak selalu berarti source RBXM boleh diunduh; ID asli masih dapat dipakai bila diizinkan.
+- Gunakan hanya animasi milikmu, public domain, atau yang diizinkan untuk disalin.
+
+### Tentang R6 / R15
+
+Versi ini **mendeteksi** rig sumber dan menampilkannya di hasil. Konversi transform
+R6↔R15 belum diaktifkan: kedua rig mempunyai hierarchy joint berbeda, sehingga
+sekadar mengganti nama Pose dapat merusak gerakan. Aplikasi tidak mengklaim dapat
+mengonversi semua animasi secara sempurna.
+
 ## Kenapa tool lain "bisa" download privat? (cookie + placeId) 🍪
 
 Hasil bedah source code open-source (kartFr/Asset-Reuploader) + situs Harmless
