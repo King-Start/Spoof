@@ -15,6 +15,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
+const { patchAnimationRbxm } = require('./animation-tools');
 require('dotenv').config();
 
 const app = express();
@@ -320,7 +321,7 @@ async function fetchAssetMeta(assetId) {
 app.get('/api/health', (req, res) => {
   res.json({
     status: '🦁 SirLion Audio Studio running!',
-    version: '1.4.3',
+    version: '1.5.1',
     node: process.version,
     ffmpeg: FFMPEG_BIN ? true : false,
     bins: BIN_INFO,
@@ -722,11 +723,15 @@ app.post('/api/reupload-animation/:id', async (req, res) => {
   try {
     const meta = await fetchAssetMeta(assetId);
     if (meta.assetTypeId !== 24) return res.status(400).json({ success: false, error: `ID ${assetId} bukan Animation (tipe ${meta.assetTypeId ?? 'tidak diketahui'}).` });
-    const buf = await downloadAnimation(assetId, apiKey);
-    const name = String((req.body || {}).name || meta.name || `Animation_${assetId}`).trim().slice(0, 50) || `Animation_${assetId}`;
+    const originalBuf = await downloadAnimation(assetId, apiKey);
+    const doUnlock = (req.body || {}).stripMaxPartTranslation !== false;
+    const patch = doUnlock ? patchAnimationRbxm(originalBuf) : { buffer: originalBuf, removed: 0, attributeBlobs: 0, rig: 'Unknown' };
+    const buf = patch.buffer;
+    const baseName = String((req.body || {}).name || meta.name || `Animation_${assetId}`).trim().slice(0, 40) || `Animation_${assetId}`;
+    const name = (doUnlock ? `${baseName} Unlocked` : baseName).slice(0, 50);
     const metadata = {
       assetType: 'Animation', displayName: name,
-      description: `Animation reuploaded from asset ${assetId}`,
+      description: `Animation reuploaded from asset ${assetId}${doUnlock ? '; MaxPartTranslation stripped' : ''}`, 
       creationContext: { creator: groupId ? { groupId: String(groupId) } : { userId: String(userId) } }
     };
     const form = new FormData();
@@ -747,8 +752,12 @@ app.post('/api/reupload-animation/:id', async (req, res) => {
     if (op.error) return res.status(500).json({ success: false, error: `Roblox menolak animasi: ${op.error.message || 'unknown'}`, details: op });
     const newAssetId = extractAssetId(op);
     if (!newAssetId) return res.status(500).json({ success: false, error: 'Upload terkirim tetapi ID baru belum terbaca.', details: op });
-    console.log(`🕺 Animation ${assetId} → ${newAssetId} ("${name}")`);
-    res.json({ success: true, sourceAssetId: assetId, newAssetId, name, size: buf.length, url: `rbxassetid://${newAssetId}`, storeUrl: `https://create.roblox.com/store/asset/${newAssetId}` });
+    console.log(`🕺 Animation ${assetId} → ${newAssetId} ("${name}", rig ${patch.rig}, removed ${patch.removed})`);
+    res.json({
+      success: true, sourceAssetId: assetId, newAssetId, name, size: buf.length,
+      rig: patch.rig, removedMaxPartTranslation: patch.removed, attributeBlobs: patch.attributeBlobs,
+      url: `rbxassetid://${newAssetId}`, storeUrl: `https://create.roblox.com/store/asset/${newAssetId}`
+    });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message || 'Gagal reupload animasi' });
   }
@@ -1088,6 +1097,7 @@ app.post('/api/check-key', async (req, res) => {
     const apiKey = String(req.body.apiKey || '').trim();
     const userInput = String(req.body.userId || '').trim();
     const groupId = String(req.body.groupId || '').trim();
+    const mode = String(req.body.mode || 'general').trim();
     const report = [];
     if (!apiKey) return res.status(400).json({ success: false, error: 'API Key wajib diisi!' });
     if (!userInput) return res.status(400).json({ success: false, error: 'User ID / username wajib diisi!' });
@@ -1125,6 +1135,25 @@ app.post('/api/check-key', async (req, res) => {
       else { keyOk = true; report.push({ ok: true, msg: `⚠️ API Key merespons (${q.status}) — pastikan asset:read + asset:write aktif.` }); }
     } catch (e) { report.push({ ok: false, msg: `❌ Tidak bisa menghubungi Roblox: ${e.message}` }); }
 
+    let legacyOk = true;
+    if (mode === 'animation') {
+      legacyOk = false;
+      try {
+        const test = await fetch('https://apis.roblox.com/asset-delivery-api/v1/assetId/656118852', {
+          headers: { 'x-api-key': apiKey }, signal: AbortSignal.timeout(20000)
+        });
+        if (test.ok) {
+          legacyOk = true;
+          report.push({ ok: true, msg: '✅ Asset Delivery animasi OK — legacy-asset:manage aktif.' });
+        } else {
+          const body = await test.text().catch(() => '');
+          report.push({ ok: false, msg: `❌ Asset Delivery animasi ditolak (${test.status}). Pastikan legacy-assets: legacy-asset:manage aktif.${body ? ' ' + body.slice(0, 120) : ''}` });
+        }
+      } catch (e) {
+        report.push({ ok: false, msg: `❌ Asset Delivery animasi gagal: ${e.message}` });
+      }
+    }
+
     let groupOk = true;
     if (groupId) {
       if (!/^\d+$/.test(groupId)) { groupOk = false; report.push({ ok: false, msg: '❌ Group ID harus angka.' }); }
@@ -1139,7 +1168,7 @@ app.post('/api/check-key', async (req, res) => {
       }
     }
 
-    res.json({ success: true, ok: Boolean(resolvedId && keyOk && groupOk), report });
+    res.json({ success: true, ok: Boolean(resolvedId && keyOk && legacyOk && groupOk), report });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message || 'Gagal tes kredensial' });
   }
@@ -1197,5 +1226,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🦁 SirLion Audio Studio v1.4.3 running on port ${PORT}`);
+  console.log(`🦁 SirLion Audio Studio v1.5.1 running on port ${PORT}`);
 });
