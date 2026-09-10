@@ -320,7 +320,7 @@ async function fetchAssetMeta(assetId) {
 app.get('/api/health', (req, res) => {
   res.json({
     status: '🦁 SirLion Audio Studio running!',
-    version: '1.3.0',
+    version: '1.4.0',
     node: process.version,
     ffmpeg: FFMPEG_BIN ? true : false,
     bins: BIN_INFO,
@@ -554,6 +554,53 @@ app.get('/api/spoof-smart/:id', async (req, res) => {
     success: false, code: 'NO_PUBLIC_COPY',
     error: `ID ${id} privat; ${tried.length} salinan publik dicoba tapi semuanya juga terkunci. Pakai jalur penyelamat: link MP3 langsung / upload file.`
   });
+});
+
+// ============================================================
+// MODEL RBXM/RBXMX — upload manual melalui Open Cloud
+// ============================================================
+app.post('/api/upload-model', uploadSmall.single('file'), async (req, res) => {
+  const { apiKey, userId, groupId } = getCreds(req);
+  if (!apiKey || !userId) return res.status(400).json({ success: false, error: 'API Key dan User ID wajib diisi dan disimpan dulu!' });
+  if (!req.file) return res.status(400).json({ success: false, error: 'Pilih file .rbxm atau .rbxmx dulu!' });
+  const ext = path.extname(req.file.originalname || '').toLowerCase();
+  if (!['.rbxm', '.rbxmx'].includes(ext)) return res.status(400).json({ success: false, error: 'Model harus berformat .rbxm atau .rbxmx!' });
+  if (!looksLikeRbxm(req.file.buffer)) return res.status(400).json({ success: false, error: 'Isi file bukan RBXM/RBXMX Roblox yang valid.' });
+  try {
+    const fallbackName = path.basename(req.file.originalname, ext).slice(0, 50) || 'SirLion Model';
+    const name = String(req.body.name || fallbackName).trim().slice(0, 50) || fallbackName;
+    const metadata = {
+      assetType: 'Model', displayName: name,
+      description: 'Model uploaded via SirLion Studio',
+      creationContext: { creator: groupId ? { groupId: String(groupId) } : { userId: String(userId) } }
+    };
+    const form = new FormData();
+    form.append('request', JSON.stringify(metadata));
+    form.append('fileContent', new Blob([req.file.buffer], { type: 'model/x-rbxm' }), `model${ext}`);
+    const r = await fetch('https://apis.roblox.com/assets/v1/assets', {
+      method: 'POST', headers: { 'x-api-key': apiKey }, body: form, signal: AbortSignal.timeout(120000)
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = r.status === 401 ? 'API Key tidak valid / kedaluwarsa (401).'
+        : r.status === 403 ? `Roblox menolak (403): ${data.message || 'aktifkan Assets Read + Write dan cek IP allowlist.'}`
+        : data.message || `Roblox API error (${r.status}).`;
+      return res.status(r.status).json({ success: false, error: msg, details: data });
+    }
+    let op = data;
+    if (!data.done && data.path && String(data.path).startsWith('operations/')) op = await pollOperation(apiKey, data.path);
+    if (op.error) return res.status(500).json({ success: false, error: `Roblox menolak model: ${op.error.message || 'unknown'}`, details: op });
+    const newAssetId = extractAssetId(op);
+    if (!newAssetId) return res.status(500).json({ success: false, error: 'Upload terkirim tetapi ID model belum terbaca.', details: op });
+    console.log(`📦 Model upload OK: ${newAssetId} ("${name}", ${(req.file.size / 1024 / 1024).toFixed(2)} MB)`);
+    res.json({
+      success: true, newAssetId, name, format: ext.slice(1).toUpperCase(), size: req.file.size,
+      url: `rbxassetid://${newAssetId}`,
+      storeUrl: `https://create.roblox.com/store/asset/${newAssetId}`
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message || 'Gagal upload model' });
+  }
 });
 
 // ============================================================
@@ -1104,5 +1151,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🦁 SirLion Audio Studio v1.3.0 running on port ${PORT}`);
+  console.log(`🦁 SirLion Audio Studio v1.4.0 running on port ${PORT}`);
 });
