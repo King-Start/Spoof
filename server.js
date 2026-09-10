@@ -320,7 +320,7 @@ async function fetchAssetMeta(assetId) {
 app.get('/api/health', (req, res) => {
   res.json({
     status: '🦁 SirLion Audio Studio running!',
-    version: '1.4.1',
+    version: '1.4.2',
     node: process.version,
     ffmpeg: FFMPEG_BIN ? true : false,
     bins: BIN_INFO,
@@ -631,21 +631,36 @@ async function downloadAnimation(assetId, apiKey = '') {
       errors.push(`HTTP ${r.status}`);
     } catch (e) { errors.push(e.message); }
   }
-  throw new Error(`Source RBXM animasi dikunci Roblox (${errors.join(' · ') || 'akses ditolak'}). ID asli masih dapat dipakai di game bila diizinkan, tetapi tidak dapat direupload kecuali key-mu memiliki akses ke source.`);
+  throw new Error(`Source RBXM ditolak Roblox (${errors.join(' · ') || 'akses ditolak'}). Edit API key lalu tambahkan legacy-assets → legacy-asset:manage, selain assets → asset:read + asset:write. Animasi privat orang lain tetap tidak dapat diambil.`);
 }
 
-async function animationSourceAvailable(assetId) {
+async function animationSourceAvailable(assetId, apiKey = '') {
+  // Jalur publik tanpa autentikasi.
   try {
     const r = await fetch(`https://assetdelivery.roblox.com/v2/assetId/${assetId}`, {
       headers: UA, signal: AbortSignal.timeout(12000)
     });
     const j = await r.json().catch(() => ({}));
-    return Boolean(r.ok && j.locations && j.locations[0] && j.locations[0].location);
-  } catch { return false; }
+    if (r.ok && j.locations && j.locations[0] && j.locations[0].location) return true;
+  } catch { /* lanjut Open Cloud */ }
+  // Jalur Open Cloud memerlukan legacy-assets:legacy-asset:manage.
+  if (apiKey) {
+    try {
+      const r = await fetch(`https://apis.roblox.com/asset-delivery-api/v1/assetId/${assetId}`, {
+        headers: { ...UA, 'x-api-key': apiKey }, redirect: 'follow', signal: AbortSignal.timeout(20000)
+      });
+      if (r.ok) {
+        const buf = maybeGunzip(Buffer.from(await r.arrayBuffer()));
+        return looksLikeRbxm(buf);
+      }
+    } catch { /* terkunci */ }
+  }
+  return false;
 }
 
 app.get('/api/search-animation', async (req, res) => {
   const keyword = String(req.query.keyword || '').trim();
+  const apiKey = String(req.headers['x-api-key'] || '').trim();
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 8, 1), 12);
   if (!keyword) return res.status(400).json({ success: false, error: 'Ketik nama animasi dulu!' });
   try {
@@ -666,7 +681,7 @@ app.get('/api/search-animation', async (req, res) => {
             id, name: d.Name || `Animation_${id}`,
             creator: d.Creator?.Name || '-',
             publicDomain: Boolean(d.IsPublicDomain),
-            downloadable: await animationSourceAvailable(id),
+            downloadable: await animationSourceAvailable(id, apiKey),
             storeUrl: `https://create.roblox.com/store/asset/${id}`
           });
         }
@@ -1162,5 +1177,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🦁 SirLion Audio Studio v1.4.1 running on port ${PORT}`);
+  console.log(`🦁 SirLion Audio Studio v1.4.2 running on port ${PORT}`);
 });
