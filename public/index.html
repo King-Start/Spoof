@@ -230,7 +230,23 @@
   </section>
 
   <!-- ========================================================= -->
-  <!-- 5. GENERATE SCRIPT -->
+  <!-- 5. UPLOAD MODEL -->
+  <!-- ========================================================= -->
+  <section>
+    <h2>📦 Upload Model Roblox <span class="badge">RBXM</span></h2>
+    <label>Nama model</label>
+    <input type="text" id="modelName" maxlength="50" placeholder="Otomatis dari nama file">
+    <label style="margin-top:12px">File model</label>
+    <input type="file" id="modelFile" accept=".rbxm,.rbxmx" onchange="modelFilePicked()">
+    <div id="modelFileInfo" class="note"></div>
+    <button id="modelUploadBtn" onclick="uploadModel()">📦 Upload Model ke Roblox</button>
+    <div id="modelLoading" class="loading hidden"><div class="spinner"></div><span>Mengupload dan menunggu ID model...</span></div>
+    <div id="modelResult" class="result hidden"></div>
+    <p class="note">Maks 20 MB · format `.rbxm`/`.rbxmx` · membutuhkan API Key <b>Assets: Read + Write</b>. Model RBXM diupload sebagai model/package. Periksa Script di dalam model sebelum memasukkannya ke game.</p>
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- 6. GENERATE SCRIPT -->
   <!-- ========================================================= -->
   <section>
     <h2>📜 Generate Script</h2>
@@ -922,6 +938,40 @@ async function animationReupload(id, encodedName=''){
 }
 
 // ============================================================
+// MODEL RBXM/RBXMX: UPLOAD OPEN CLOUD
+// ============================================================
+function modelFilePicked(){
+  const f=document.getElementById('modelFile').files[0];
+  const info=document.getElementById('modelFileInfo');
+  if(!f){info.textContent='';return;}
+  info.textContent=`📄 ${f.name} · ${(f.size/1024/1024).toFixed(2)} MB`;
+  if(!document.getElementById('modelName').value.trim()) document.getElementById('modelName').value=f.name.replace(/\.(rbxm|rbxmx)$/i,'').slice(0,50);
+}
+
+async function uploadModel(){
+  const f=document.getElementById('modelFile').files[0];
+  if(!f) return alert('Pilih file .rbxm atau .rbxmx dulu!');
+  if(!/\.(rbxm|rbxmx)$/i.test(f.name)) return alert('File harus .rbxm atau .rbxmx!');
+  if(f.size>20*1024*1024) return alert('File model maksimal 20 MB!');
+  const key=localStorage.getItem('key')||'', uid=localStorage.getItem('uid')||'', gid=localStorage.getItem('gid')||'';
+  if(!key||!uid) return alert('Isi dan Simpan API Key + User ID di panel Kredensial dulu!');
+  const btn=document.getElementById('modelUploadBtn'), loading=document.getElementById('modelLoading'), result=document.getElementById('modelResult');
+  btn.disabled=true; loading.classList.remove('hidden'); result.classList.add('hidden');
+  try{
+    const fd=new FormData();
+    fd.append('file',f); fd.append('name',document.getElementById('modelName').value.trim());
+    const r=await fetch('/api/upload-model',{method:'POST',headers:{'x-api-key':key,'x-user-id':uid,'x-group-id':gid},body:fd});
+    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
+    if(!d.success) throw new Error(d.error||`Upload gagal (${r.status})`);
+    result.className='result';
+    result.innerHTML=`✅ <b>Model berhasil diupload!</b><br>${esc(d.name)}<br>ID baru: <b>${esc(d.newAssetId)}</b><br><code>rbxassetid://${esc(d.newAssetId)}</code>
+      <div class="row" style="margin-top:8px"><button style="margin-top:0" onclick="copyId('${d.newAssetId}')">📋 Copy ID</button><button style="margin-top:0" onclick="window.open('${d.storeUrl}','_blank')">🔗 Buka</button></div>`;
+    result.scrollIntoView({behavior:'smooth',block:'center'});
+  }catch(e){result.className='result error';result.innerHTML='❌ '+esc(e.message);}
+  finally{btn.disabled=false;loading.classList.add('hidden');}
+}
+
+// ============================================================
 // GENERATE SCRIPT (+ Lua syntax highlight)
 // ============================================================
 async function generateScript(){
@@ -982,5 +1032,5 @@ function fmtTime(sec){
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a38b9e208aa9d008',t:'MTc4OTAxMzc5MA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a38bac4a8eb4b58c',t:'MTc4OTAxNDM3MA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
