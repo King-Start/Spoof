@@ -320,7 +320,7 @@ async function fetchAssetMeta(assetId) {
 app.get('/api/health', (req, res) => {
   res.json({
     status: '🦁 SirLion Audio Studio running!',
-    version: '1.2.0',
+    version: '1.3.0',
     node: process.version,
     ffmpeg: FFMPEG_BIN ? true : false,
     bins: BIN_INFO,
@@ -554,6 +554,111 @@ app.get('/api/spoof-smart/:id', async (req, res) => {
     success: false, code: 'NO_PUBLIC_COPY',
     error: `ID ${id} privat; ${tried.length} salinan publik dicoba tapi semuanya juga terkunci. Pakai jalur penyelamat: link MP3 langsung / upload file.`
   });
+});
+
+// ============================================================
+// ANIMATION — cari animasi publik + reupload Open Cloud (.rbxm)
+// ============================================================
+function looksLikeRbxm(buf) {
+  if (!buf || buf.length < 100) return false;
+  const head = buf.subarray(0, 32).toString('utf8');
+  return head.startsWith('<roblox!') || head.startsWith('<roblox') || head.startsWith('<?xml');
+}
+
+async function downloadAnimation(assetId, apiKey = '') {
+  const headers = apiKey ? { 'x-api-key': apiKey } : {};
+  const attempts = [
+    [`https://assetdelivery.roblox.com/v1/asset/?id=${assetId}`, {}],
+    [`https://assetdelivery.roblox.com/v1/asset/?id=${assetId}`, headers],
+    [`https://apis.roblox.com/asset-delivery-api/v1/assetId/${assetId}`, headers]
+  ];
+  const errors = [];
+  for (const [url, h] of attempts) {
+    if (url.includes('apis.roblox.com') && !apiKey) continue;
+    try {
+      const r = await fetchBytes(url, h);
+      if (r.ok && looksLikeRbxm(r.buf)) {
+        if (r.buf.length > 20 * 1024 * 1024) throw new Error('Animasi >20 MB.');
+        return r.buf;
+      }
+      errors.push(`HTTP ${r.status}`);
+    } catch (e) { errors.push(e.message); }
+  }
+  throw new Error(`Animasi tidak dapat diambil (${errors.join(' · ') || 'akses ditolak'}). Pastikan ID publik atau key-mu punya akses.`);
+}
+
+app.get('/api/search-animation', async (req, res) => {
+  const keyword = String(req.query.keyword || '').trim();
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 8, 1), 12);
+  if (!keyword) return res.status(400).json({ success: false, error: 'Ketik nama animasi dulu!' });
+  try {
+    const sr = await fetch(`https://apis.roblox.com/toolbox-service/v1/marketplace/24?keyword=${encodeURIComponent(keyword)}&limit=${limit}&sortType=Relevance`, {
+      headers: UA, signal: AbortSignal.timeout(20000)
+    });
+    if (!sr.ok) throw new Error(`Creator Store error (${sr.status})`);
+    const sj = await sr.json();
+    const ids = (sj.data || []).map((x) => String(x.id)).filter((x) => /^\d+$/.test(x)).slice(0, limit);
+    // Economy mudah rate-limit bila dipanggil paralel; ambil metadata berurutan.
+    const metas = [];
+    for (const id of ids) {
+      try {
+        const r = await fetch(`https://economy.roblox.com/v2/assets/${id}/details`, { headers: UA, signal: AbortSignal.timeout(15000) });
+        if (r.ok) {
+          const d = await r.json();
+          if (d.AssetTypeId === 24) metas.push({
+            id, name: d.Name || `Animation_${id}`,
+            creator: d.Creator?.Name || '-',
+            publicDomain: Boolean(d.IsPublicDomain),
+            storeUrl: `https://create.roblox.com/store/asset/${id}`
+          });
+        }
+      } catch { /* satu metadata gagal → lanjut hasil lain */ }
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    }
+    res.json({ success: true, keyword, total: sj.totalResults || ids.length, results: metas });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e?.name === 'TimeoutError' ? 'Roblox timeout. Coba lagi.' : e.message });
+  }
+});
+
+app.post('/api/reupload-animation/:id', async (req, res) => {
+  const assetId = String(req.params.id || '').trim();
+  if (!/^\d+$/.test(assetId)) return res.status(400).json({ success: false, error: 'ID animasi harus angka!' });
+  const { apiKey, userId, groupId } = getCreds(req);
+  if (!apiKey || !userId) return res.status(400).json({ success: false, error: 'API Key dan User ID wajib diisi dan disimpan dulu!' });
+  try {
+    const meta = await fetchAssetMeta(assetId);
+    if (meta.assetTypeId !== 24) return res.status(400).json({ success: false, error: `ID ${assetId} bukan Animation (tipe ${meta.assetTypeId ?? 'tidak diketahui'}).` });
+    const buf = await downloadAnimation(assetId, apiKey);
+    const name = String((req.body || {}).name || meta.name || `Animation_${assetId}`).trim().slice(0, 50) || `Animation_${assetId}`;
+    const metadata = {
+      assetType: 'Animation', displayName: name,
+      description: `Animation reuploaded from asset ${assetId}`,
+      creationContext: { creator: groupId ? { groupId: String(groupId) } : { userId: String(userId) } }
+    };
+    const form = new FormData();
+    form.append('request', JSON.stringify(metadata));
+    form.append('fileContent', new Blob([buf], { type: 'model/x-rbxm' }), 'animation.rbxm');
+    const r = await fetch('https://apis.roblox.com/assets/v1/assets', {
+      method: 'POST', headers: { 'x-api-key': apiKey }, body: form, signal: AbortSignal.timeout(120000)
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = r.status === 401 ? 'API Key tidak valid / kedaluwarsa (401).'
+        : r.status === 403 ? `Roblox menolak (403): ${data.message || 'aktifkan Assets Read + Write dan cek IP allowlist.'}`
+        : data.message || `Roblox API error (${r.status}).`;
+      return res.status(r.status).json({ success: false, error: msg, details: data });
+    }
+    let op = data;
+    if (!data.done && data.path && String(data.path).startsWith('operations/')) op = await pollOperation(apiKey, data.path);
+    if (op.error) return res.status(500).json({ success: false, error: `Roblox menolak animasi: ${op.error.message || 'unknown'}`, details: op });
+    const newAssetId = extractAssetId(op);
+    if (!newAssetId) return res.status(500).json({ success: false, error: 'Upload terkirim tetapi ID baru belum terbaca.', details: op });
+    console.log(`🕺 Animation ${assetId} → ${newAssetId} ("${name}")`);
+    res.json({ success: true, sourceAssetId: assetId, newAssetId, name, size: buf.length, url: `rbxassetid://${newAssetId}`, storeUrl: `https://create.roblox.com/store/asset/${newAssetId}` });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message || 'Gagal reupload animasi' });
+  }
 });
 
 // ============================================================
@@ -999,5 +1104,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🦁 SirLion Audio Studio v1.2.0 running on port ${PORT}`);
+  console.log(`🦁 SirLion Audio Studio v1.3.0 running on port ${PORT}`);
 });
