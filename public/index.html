@@ -39,6 +39,10 @@
     details summary{cursor:pointer;color:#f7971e;font-size:.85rem;margin-bottom:10px}
     footer{text-align:center;color:#555;font-size:.75rem;padding:10px 0 20px}
 
+    .dropzone{border:2px dashed rgba(255,255,255,.2);border-radius:10px;padding:26px;text-align:center;color:#999;cursor:pointer;transition:all .2s}
+    .dropzone:hover,.dropzone.drag{border-color:#f7971e;color:#f7971e;background:rgba(247,151,30,.06)}
+    .dropzone .filename{color:#ffd200;font-weight:bold;margin-top:8px;display:block;word-break:break-all}
+
     /* ===== PANEL KONTROL STUDIO ===== */
     #studioPanel{background:rgba(247,151,30,.05);border:1px solid rgba(247,151,30,.3);border-radius:12px;padding:18px;margin-top:14px}
     .track-title{font-size:1.05rem;font-weight:bold;word-break:break-all}
@@ -189,7 +193,22 @@
   </section>
 
   <!-- ========================================================= -->
-  <!-- 3. YOUTUBE IMPORT -->
+  <!-- 3. UPLOAD MANUAL -->
+  <!-- ========================================================= -->
+  <section>
+    <h2>📁 Upload Manual <span class="badge">file sendiri</span></h2>
+    <div class="dropzone" id="manualDrop" onclick="document.getElementById('manualFile').click()">
+      📁 Klik / tarik file audio ke sini
+      <span style="font-size:.75rem;display:block;margin-top:6px">MP3 · OGG · WAV · FLAC — maks 25 MB</span>
+      <span class="filename hidden" id="manualFileName"></span>
+    </div>
+    <input type="file" id="manualFile" accept=".mp3,.ogg,.wav,.flac,audio/*" class="hidden">
+    <div id="manualLoading" class="loading hidden"><div class="spinner"></div>Memuat file ke studio...</div>
+    <p class="note">File langsung masuk panel kontrol (play, edit, convert, upload) — tanpa spoof.</p>
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- 4. YOUTUBE IMPORT -->
   <!-- ========================================================= -->
   <section>
     <h2>🎬 YouTube Import <span class="badge">baru</span></h2>
@@ -210,7 +229,7 @@
   </section>
 
   <!-- ========================================================= -->
-  <!-- 4. GENERATE SCRIPT -->
+  <!-- 5. GENERATE SCRIPT -->
   <!-- ========================================================= -->
   <section>
     <h2>📜 Generate Script</h2>
@@ -513,21 +532,44 @@ async function importFromUrl(){
   finally{document.getElementById('rescueLoading').classList.add('hidden');}
 }
 
+// Satu pintu untuk SEMUA upload file (rescue + section manual)
+async function loadFileIntoStudio(file){
+  const ok=/\.(mp3|ogg|wav|flac)$/i.test(file.name)||/^audio\//.test(file.type)||file.type==='application/ogg';
+  if(!ok) throw new Error('File harus MP3, OGG, WAV, atau FLAC!');
+  if(file.size>25*1024*1024) throw new Error('Maksimal 25 MB!');
+  const m=file.name.toLowerCase().match(/\.([a-z0-9]+)$/);
+  await loadIntoStudio({blob:file,name:file.name.replace(/\.[^.]+$/,'').slice(0,50)||'File sendiri',creator:'file sendiri',id:null,format:(m&&m[1])||'mp3',storeUrl:''});
+}
+
 document.getElementById('ownFile').addEventListener('change',async e=>{
   const f=e.target.files[0];
   e.target.value='';
   if(!f) return;
-  const ok=/\.(mp3|ogg|wav|flac)$/i.test(f.name)||/^audio\//.test(f.type)||f.type==='application/ogg';
-  if(!ok) return alert('File harus MP3, OGG, WAV, atau FLAC!');
-  if(f.size>25*1024*1024) return alert('Maksimal 25 MB!');
   document.getElementById('rescueLoading').classList.remove('hidden');
   document.getElementById('rescueLoadingText').textContent='Memuat file...';
-  try{
-    const m=f.name.toLowerCase().match(/\.([a-z0-9]+)$/);
-    await loadIntoStudio({blob:f,name:f.name.replace(/\.[^.]+$/,'').slice(0,50)||'File sendiri',creator:'file sendiri',id:null,format:(m&&m[1])||'mp3',storeUrl:''});
-  }catch(err){alert('❌ '+err.message);}
+  try{ await loadFileIntoStudio(f); }
+  catch(err){alert('❌ '+err.message);}
   finally{document.getElementById('rescueLoading').classList.add('hidden');}
 });
+
+// Section Upload Manual (selalu tampil, tanpa harus spoof gagal dulu)
+const manualDrop=document.getElementById('manualDrop');
+const manualFile=document.getElementById('manualFile');
+manualFile.addEventListener('change',e=>{manualLoad(e.target.files[0]);e.target.value='';});
+['dragover','dragenter'].forEach(ev=>manualDrop.addEventListener(ev,e=>{e.preventDefault();manualDrop.classList.add('drag')}));
+['dragleave','drop'].forEach(ev=>manualDrop.addEventListener(ev,e=>{e.preventDefault();manualDrop.classList.remove('drag')}));
+manualDrop.addEventListener('drop',e=>manualLoad(e.dataTransfer.files[0]));
+async function manualLoad(f){
+  if(!f) return;
+  document.getElementById('manualLoading').classList.remove('hidden');
+  try{
+    await loadFileIntoStudio(f);
+    const fn=document.getElementById('manualFileName');
+    fn.textContent=`${f.name} (${(f.size/1024/1024).toFixed(2)} MB)`;
+    fn.classList.remove('hidden');
+  }catch(err){alert('❌ '+err.message);}
+  finally{document.getElementById('manualLoading').classList.add('hidden');}
+}
 
 // ============================================================
 // ENGINE PREVIEW (Web Audio API)
@@ -943,5 +985,5 @@ function fmtTime(sec){
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a387f9fba952d008',t:'MTc4ODk3NTYxMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a38a716e7dce183f',t:'MTc4OTAwMTQ3NA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
