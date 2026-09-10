@@ -15,7 +15,18 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
-const { patchAnimationRbxm } = require('./animation-tools');
+
+// Animation repair is optional at startup so one missing deployment file cannot
+// crash the entire Audio/Model studio. The animation endpoint returns a clear
+// 503 until animation-tools.js and rbxm-parser are both available.
+let patchAnimationRbxm = null;
+let animationToolsError = null;
+try {
+  ({ patchAnimationRbxm } = require('./animation-tools'));
+} catch (error) {
+  animationToolsError = error;
+  console.warn(`⚠️ Animation repair nonaktif: ${error.message}`);
+}
 require('dotenv').config();
 
 const app = express();
@@ -321,9 +332,13 @@ async function fetchAssetMeta(assetId) {
 app.get('/api/health', (req, res) => {
   res.json({
     status: '🦁 SirLion Audio Studio running!',
-    version: '1.5.1',
+    version: '1.6.0',
     node: process.version,
     ffmpeg: FFMPEG_BIN ? true : false,
+    animationRepair: {
+      ok: typeof patchAnimationRbxm === 'function',
+      error: animationToolsError ? animationToolsError.message : null
+    },
     bins: BIN_INFO,
     timestamp: new Date().toISOString()
   });
@@ -723,8 +738,15 @@ app.post('/api/reupload-animation/:id', async (req, res) => {
   try {
     const meta = await fetchAssetMeta(assetId);
     if (meta.assetTypeId !== 24) return res.status(400).json({ success: false, error: `ID ${assetId} bukan Animation (tipe ${meta.assetTypeId ?? 'tidak diketahui'}).` });
-    const originalBuf = await downloadAnimation(assetId, apiKey);
     const doUnlock = (req.body || {}).stripMaxPartTranslation !== false;
+    if (doUnlock && typeof patchAnimationRbxm !== 'function') {
+      return res.status(503).json({
+        success: false,
+        error: 'Repair animasi belum aktif di deployment, tetapi Audio/Model tetap berjalan. Upload animation-tools.js serta package.json/package-lock.json v1.5.2, lalu deploy commit terbaru.',
+        details: animationToolsError ? animationToolsError.message : 'animation-tools tidak tersedia'
+      });
+    }
+    const originalBuf = await downloadAnimation(assetId, apiKey);
     const patch = doUnlock ? patchAnimationRbxm(originalBuf) : { buffer: originalBuf, removed: 0, attributeBlobs: 0, rig: 'Unknown' };
     const buf = patch.buffer;
     const baseName = String((req.body || {}).name || meta.name || `Animation_${assetId}`).trim().slice(0, 40) || `Animation_${assetId}`;
@@ -995,7 +1017,8 @@ app.post('/api/convert', uploadBig.single('file'), async (req, res) => {
 
 // ============================================================
 // UPLOAD — POST /api/upload (multipart: file + name)
-// Open Cloud Create Asset + polling Operation (INSTANT APPROVE!)
+// Open Cloud Create Asset + polling creation Operation.
+// Operation completion creates an ID; it does NOT guarantee moderation approval.
 // ============================================================
 function extractAssetId(op) {
   if (!op || typeof op !== 'object') return null;
@@ -1081,11 +1104,49 @@ app.post('/api/upload', uploadSmall.single('file'), async (req, res) => {
       format: ext.toUpperCase(),
       url: `rbxassetid://${newAssetId}`,
       moderation: op?.response?.moderationResult?.moderationState || null,
-      message: `✅ INSTANT APPROVE! Audio live (privat) dengan ID: ${newAssetId}`
+      message: `Upload selesai dan ID ${newAssetId} dibuat. Status moderasi harus dipantau terpisah.`
     });
   } catch (error) {
     console.error('❌ Upload error:', error.message);
     res.status(500).json({ success: false, error: error.message || 'Gagal upload' });
+  }
+});
+
+// ============================================================
+// LIVE MODERATION STATUS — GET /api/asset-status/:id
+// Uses the authenticated Open Cloud asset metadata endpoint.
+// ============================================================
+app.get('/api/asset-status/:id', async (req, res) => {
+  const assetId = String(req.params.id || '').trim();
+  const apiKey = String(req.headers['x-api-key'] || '').trim();
+  if (!/^\d+$/.test(assetId)) return res.status(400).json({ success: false, error: 'Asset ID harus angka.' });
+  if (!apiKey) return res.status(400).json({ success: false, error: 'API Key utama diperlukan untuk mengecek moderasi.' });
+  try {
+    const r = await fetch(`https://apis.roblox.com/assets/v1/assets/${assetId}`, {
+      headers: { 'x-api-key': apiKey }, signal: AbortSignal.timeout(15000)
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = r.status === 401 ? 'API Key tidak valid (401).'
+        : r.status === 403 ? 'Key tidak boleh membaca asset ini (403). Pastikan asset:read aktif dan key milik creator yang benar.'
+        : r.status === 404 ? 'Asset belum tersedia di metadata Roblox (404). Coba lagi sebentar.'
+        : data.message || `Gagal membaca status (${r.status}).`;
+      return res.status(r.status).json({ success: false, error: msg });
+    }
+    const raw = String(data?.moderationResult?.moderationState || 'MODERATION_STATE_UNSPECIFIED');
+    const state = raw.replace(/^MODERATION_STATE_/, '').toUpperCase();
+    const labels = {
+      APPROVED: 'Approved', REVIEWING: 'Dalam moderasi', REJECTED: 'Ditolak moderator',
+      UNSPECIFIED: 'Belum diketahui'
+    };
+    res.json({
+      success: true, assetId, state,
+      label: labels[state] || raw,
+      terminal: state === 'APPROVED' || state === 'REJECTED',
+      checkedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error?.name === 'TimeoutError' ? 'Roblox timeout saat cek moderasi.' : error.message });
   }
 });
 
@@ -1226,5 +1287,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🦁 SirLion Audio Studio v1.5.1 running on port ${PORT}`);
+  console.log(`🦁 SirLion Audio Studio v1.6.0 running on port ${PORT}`);
 });
