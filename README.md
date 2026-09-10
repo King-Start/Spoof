@@ -1,4 +1,4 @@
-# 🦁 SirLion Audio Studio v1.0
+# 🦁 SirLion Audio Studio v1.2.0
 
 **Spoof → Edit → Convert → Upload → Generate Script.** Semua dalam satu web.
 
@@ -27,20 +27,15 @@ npm start          # buka http://localhost:3000 (butuh Node.js 18+)
 
 1. Push folder ini ke GitHub, lalu **New Project → Deploy from Repo** di Railway
    (atau hubungkan repo yang sudah ada → Railway auto-redeploy tiap push).
-2. **WAJIB**: pasang system binary — pilih salah satu:
-   - **Railpack** (builder baru): Variables → tambah `RAILPACK_PACKAGES` = `ffmpeg yt-dlp`
+2. Pasang ffmpeg — pilih salah satu:
+   - **Railpack** (builder baru): Variables → tambah `RAILPACK_PACKAGES` = `ffmpeg`
    - **Nixpacks**: file `nixpacks.toml` di repo ini otomatis dipakai
-   - Kalau keduanya gagal: server otomatis **self-install ffmpeg dan yt-dlp**
-     dari rilis resmi ke folder temporary. ffmpeg mulai disiapkan saat boot;
-     request convert/YouTube juga otomatis menunggu sampai siap.
+   - Kalau keduanya gagal, server otomatis self-install ffmpeg-static resmi ke
+     folder temporary saat boot.
 3. Verifikasi: buka `https://xxx.up.railway.app/api/health` — pastikan
-   `"ffmpeg": true` dan `"ytdlp": true`. Kalau false, baca `bins.ytdlp.error` /
-   `bins.ffmpeg.error` untuk penyebab pastinya.
+   `"ffmpeg": true`. Kalau false, baca `bins.ffmpeg.error` untuk penyebabnya.
 4. Start command default (`npm start`) + port otomatis (`process.env.PORT`) —
    tidak perlu setting lain.
-
-> ⚠️ YouTube dari IP datacenter (Railway/VPS) kadang kena "verifikasi bot".
-> Kalau itu terjadi: YouTube-an di PC rumah, Railway untuk spoof/upload Roblox.
 
 ## Cara kerja spoof (backend)
 
@@ -71,23 +66,6 @@ GET /api/spoof-audio/:id
 | POST | `/api/import-url` (`{url}`) | Ambil file audio dari link langsung |
 | POST | `/api/diagnose-access` (`{assetId}`, header key) | Diagnosa langkah-demi-langkah kenapa key ditolak |
 | GET | `/api/spoof-smart/:id` | ID privat → otomatis pakai salinan publik yang bunyi (dipakai otomatis saat spoof biasa gagal) |
-| GET | `/api/yt-search?q=&limit=` | Cari lagu di YouTube (tanpa API key Google) |
-| POST | `/api/yt-import` (`{url}`) | Download audio YouTube → MP3 192k → binary |
-
-## YouTube Import 🎬
-
-Section baru di web: **cari lagu** (thumbnail + channel + durasi + views) atau
-**tempel link** (watch / youtu.be / shorts / music) → ⬇️ Ambil → lagu langsung
-masuk studio (edit → convert → upload, sama seperti spoof).
-
-- Butuh `yt-dlp` + `ffmpeg` (dua-duanya ke-install otomatis via npm).
-- Maks **7 menit** (aturan Roblox) — video lebih panjang ditolak cepat sebelum download.
-- Live / privat / dibatasi umur tidak bisa diambil.
-- Kalau error "verifikasi bot": YouTube membatasi IP server — jalankan app di PC rumah.
-- YouTube sering mengubah proteksi: kalau gagal masal, update dulu
-  (`npm update yt-dlp-exec`) lalu restart server.
-- 🙏 Pakai lagu yang kamu punya haknya (karya sendiri / bebas lisensi / izin pemilik).
-
 ## Kenapa tool lain "bisa" download privat? (cookie + placeId) 🍪
 
 Hasil bedah source code open-source (kartFr/Asset-Reuploader) + situs Harmless
