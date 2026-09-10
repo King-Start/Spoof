@@ -1,0 +1,4 @@
+# Railway/Nixpacks: sediakan ffmpeg + yt-dlp sebagai system binary
+# ('...' = pertahankan paket auto-detect seperti nodejs — JANGAN dihapus)
+[phases.setup]
+nixPkgs = ['...', 'ffmpeg', 'yt-dlp']

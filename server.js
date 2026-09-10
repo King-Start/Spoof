@@ -31,7 +31,7 @@ const uploadBig = multer({ storage: multer.memoryStorage(), limits: { fileSize: 
 // ============================================================
 // ============================================================
 // BINARY DETECTION (ffmpeg + yt-dlp) — dengan diagnosa & self-heal
-// Prioritas: npm-bundled → system PATH → (yt-dlp) self-install saat dibutuhkan
+// Prioritas: npm-bundled → system PATH → self-install binary resmi bila hosting membuang postinstall
 // ============================================================
 const BIN_INFO = {
   ffmpeg: { ok: false, path: null, error: 'belum dicek' },
@@ -83,6 +83,59 @@ let YTDLP_BIN = null;
   console.log(FFMPEG_BIN ? `🎬 ffmpeg OK: ${FFMPEG_BIN}` : `⚠️ ffmpeg TIDAK ADA (${BIN_INFO.ffmpeg.error})`);
   console.log(YTDLP_BIN ? `📺 yt-dlp OK: ${YTDLP_BIN}` : `⚠️ yt-dlp TIDAK ADA (${BIN_INFO.ytdlp.error}) — self-install saat dibutuhkan`);
 })();
+
+// Self-install ffmpeg-static resmi saat Railway/builder membuang binary postinstall.
+// Release ini sama sumbernya dengan paket npm ffmpeg-static, hanya diunduh saat runtime.
+let ffmpegInstallPromise = null;
+async function ensureFfmpeg() {
+  if (FFMPEG_BIN) return FFMPEG_BIN;
+  if (!ffmpegInstallPromise) {
+    ffmpegInstallPromise = (async () => {
+      let staticFfmpeg = null;
+      try { staticFfmpeg = require('ffmpeg-static'); } catch {}
+      const found = detectBin('ffmpeg', [staticFfmpeg, 'ffmpeg'], ['-version']);
+      if (found) { FFMPEG_BIN = found; return found; }
+
+      const platform = process.platform;
+      const archMap = { x64: 'x64', arm64: 'arm64', ia32: 'ia32', arm: 'arm' };
+      const arch = archMap[process.arch];
+      if (!['linux', 'darwin', 'win32'].includes(platform) || !arch) {
+        throw new Error(`platform tidak didukung: ${platform}-${process.arch}`);
+      }
+      if (platform === 'win32' && arch !== 'x64') {
+        throw new Error(`platform tidak didukung: ${platform}-${process.arch}`);
+      }
+      const asset = `ffmpeg-${platform}-${arch}.gz`;
+      const url = `https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/${asset}`;
+      const dest = path.join(os.tmpdir(), `sirlion-ffmpeg-${platform}-${arch}${platform === 'win32' ? '.exe' : ''}`);
+      console.log(`📥 ffmpeg tidak ada — download binary static dari ${url} ...`);
+      const r = await fetch(url, { headers: UA, redirect: 'follow', signal: AbortSignal.timeout(240000) });
+      if (!r.ok) throw new Error(`download ffmpeg gagal (HTTP ${r.status})`);
+      const packed = Buffer.from(await r.arrayBuffer());
+      if (packed.length < 10 * 1024 * 1024) throw new Error('arsip ffmpeg terlalu kecil (download rusak?)');
+      let binary;
+      try { binary = zlib.gunzipSync(packed); }
+      catch (e) { throw new Error('gagal ekstrak ffmpeg: ' + e.message); }
+      if (binary.length < 20 * 1024 * 1024) throw new Error('binary ffmpeg hasil ekstrak terlalu kecil');
+      fs.writeFileSync(dest, binary);
+      fs.chmodSync(dest, 0o755);
+      const chk = checkBin(dest, ['-version']);
+      if (!chk.ok) throw new Error('binary hasil download tidak jalan: ' + chk.error);
+      FFMPEG_BIN = dest;
+      BIN_INFO.ffmpeg = { ok: true, path: dest, error: null };
+      console.log(`🎬 ffmpeg self-install OK: ${dest}`);
+      return dest;
+    })().catch((e) => {
+      ffmpegInstallPromise = null;
+      BIN_INFO.ffmpeg = { ok: false, path: null, error: 'self-install gagal: ' + e.message };
+      throw e;
+    });
+  }
+  return ffmpegInstallPromise;
+}
+
+// Mulai siapkan ffmpeg segera saat boot, tanpa menahan server/health endpoint.
+if (!FFMPEG_BIN) ensureFfmpeg().catch((e) => console.error('❌ ffmpeg self-install:', e.message));
 
 // Self-install yt-dlp saat endpoint YT dipanggil tapi binary tidak ada.
 // (menyelamatkan deploy yang postinstall-nya gagal / tercache tanpa binary)
@@ -313,7 +366,7 @@ async function fetchAssetMeta(assetId) {
 app.get('/api/health', (req, res) => {
   res.json({
     status: '🦁 SirLion Audio Studio running!',
-    version: '1.1.0',
+    version: '1.1.1',
     node: process.version,
     ffmpeg: FFMPEG_BIN ? true : false,
     ytdlp: YTDLP_BIN ? true : false,
@@ -795,12 +848,9 @@ app.get('/api/yt-search', async (req, res) => {
 // POST /api/yt-import { url | videoId } — download bestaudio → MP3 → binary
 app.post('/api/yt-import', async (req, res) => {
   try {
-    await ensureYtdlp();
+    await Promise.all([ensureYtdlp(), ensureFfmpeg()]);
   } catch (e) {
-    return res.status(501).json({ success: false, needYtdlp: true, error: 'Server tanpa yt-dlp (' + e.message + '). Cek /api/health untuk detail.' });
-  }
-  if (!FFMPEG_BIN) {
-    return res.status(501).json({ success: false, error: 'Server tanpa ffmpeg (butuh untuk transcode). Install: npm i ffmpeg-static.' });
+    return res.status(501).json({ success: false, error: 'Server gagal menyiapkan yt-dlp/ffmpeg otomatis (' + e.message + '). Cek /api/health untuk detail.' });
   }
   const vid = extractYoutubeId((req.body || {}).url || (req.body || {}).videoId);
   if (!vid) {
@@ -874,10 +924,12 @@ app.post('/api/yt-import', async (req, res) => {
 // Efek: atempo (speed, tempo→pitch stabil) + rubberband (pitch independen) + volume
 // ============================================================
 app.post('/api/convert', uploadBig.single('file'), async (req, res) => {
-  if (!FFMPEG_BIN) {
+  try {
+    await ensureFfmpeg();
+  } catch (e) {
     return res.status(501).json({
       success: false, needFfmpeg: true,
-      error: 'Server tidak punya ffmpeg — CONVERT backend nonaktif. Frontend akan render WAV langsung di browser sebagai fallback.'
+      error: 'Server gagal menyiapkan ffmpeg otomatis (' + e.message + '). Cek /api/health untuk detail.'
     });
   }
   if (!req.file) return res.status(400).json({ success: false, error: 'Kirim file audio (field "file")!' });
@@ -1162,5 +1214,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🦁 SirLion Audio Studio v1.0 running on port ${PORT}`);
+  console.log(`🦁 SirLion Audio Studio v1.1.1 running on port ${PORT}`);
 });
