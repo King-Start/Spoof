@@ -90,18 +90,21 @@
   <section>
     <details>
       <summary>🔑 Kredensial Open Cloud</summary>
-      <label>API Key</label>
-      <input type="password" id="apiKey" placeholder="API Key (butuh asset:read + asset:write)" autocomplete="off">
+      <label>API Key Utama — Audio & Model</label>
+      <input type="password" id="apiKey" placeholder="Key utama: assets asset:read + asset:write" autocomplete="off">
+      <label>API Key Khusus Animasi</label>
+      <input type="password" id="animApiKey" placeholder="Key animasi: assets read/write + legacy-assets manage" autocomplete="off">
       <label>User ID</label>
       <input type="text" id="userId" placeholder="User ID Roblox (boleh username)" autocomplete="off">
       <label>Group ID <span style="color:#666">(opsional)</span></label>
       <input type="text" id="groupId" placeholder="Kosongkan kalau pribadi" autocomplete="off">
       <div class="row">
-        <button onclick="saveKey()">💾 Simpan</button>
-        <button class="btn-secondary" onclick="testKey()">🔍 Tes</button>
+        <button onclick="saveKey()">💾 Simpan Keduanya</button>
+        <button class="btn-secondary" onclick="testKey()">🎵 Tes Utama</button>
+        <button class="btn-secondary" onclick="testAnimationKey()">🕺 Tes Animasi</button>
       </div>
       <div id="status" style="text-align:center;margin-top:8px;color:#4dff9d;font-size:.85rem;line-height:1.6"></div>
-      <p class="note">Dibutuhkan untuk upload. Buat key di <a href="https://create.roblox.com/dashboard/credentials" target="_blank">Creator Dashboard → Credentials</a> dengan <b>assets: asset:read + asset:write</b>. Khusus download/reupload animasi, tambahkan juga <b>legacy-assets: legacy-asset:manage</b>. Jangan pernah masukkan `.ROBLOSECURITY`.</p>
+      <p class="note"><b>Dua key disimpan terpisah di browser ini.</b> Key utama dipakai Audio & Model dengan <b>assets: asset:read + asset:write</b>. Key animasi hanya dipakai pencarian/download/reupload Animation dan membutuhkan izin tersebut ditambah <b>legacy-assets: legacy-asset:manage</b>. Jangan masukkan `.ROBLOSECURITY`.</p>
     </details>
   </section>
 
@@ -214,8 +217,13 @@
     <h2>🕺 Spoof Animasi <span class="badge">reupload</span></h2>
     <label>Cari animasi publik</label>
     <div class="row">
-      <input type="text" id="animKeyword" placeholder="Contoh: dance, walk, idle" onkeydown="if(event.key==='Enter')animationSearch()" style="flex:2">
+      <input type="text" id="animKeyword" placeholder="Contoh: dance, emote, walk" onkeydown="if(event.key==='Enter')animationSearch()" style="flex:2">
       <button id="animSearchBtn" style="margin-top:0" onclick="animationSearch()">🔎 Cari</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn-secondary" style="margin-top:0" onclick="animationCategory('dance')">💃 Dance</button>
+      <button class="btn-secondary" style="margin-top:0" onclick="animationCategory('emote')">😄 Emote</button>
+      <button class="btn-secondary" style="margin-top:0" onclick="animationCategory('idle')">🧍 Idle</button>
     </div>
     <div id="animResults"></div>
     <div class="orline">— atau —</div>
@@ -226,7 +234,7 @@
     </div>
     <div id="animLoading" class="loading hidden"><div class="spinner"></div><span id="animLoadingText">Memproses animasi...</span></div>
     <div id="animResult" class="result hidden"></div>
-    <p class="note">API Key wajib memiliki <b>assets: asset:read + asset:write</b> dan <b>legacy-assets: legacy-asset:manage</b>. Tanpa izin legacy, download selalu 403. Animasi privat orang lain tetap tidak dapat diambil. Jangan masukkan cookie `.ROBLOSECURITY`.</p>
+    <p class="note">Tombol Reupload otomatis memindai RBXM, menghapus atribut <b>MaxPartTranslation</b>, mendeteksi rig R6/R15, lalu menerbitkan ID baru. API Key wajib memiliki <b>assets: asset:read + asset:write</b> dan <b>legacy-assets: legacy-asset:manage</b>. Animasi privat orang lain tetap tidak dapat diambil. Jangan masukkan cookie `.ROBLOSECURITY`.</p>
   </section>
 
   <!-- ========================================================= -->
@@ -299,21 +307,24 @@ let currentScript = '';
 // KREDENSIAL
 // ============================================================
 (function loadSaved(){
-  const key=localStorage.getItem('key'), uid=localStorage.getItem('uid'), gid=localStorage.getItem('gid');
+  const key=localStorage.getItem('key'), animKey=localStorage.getItem('animKey'), uid=localStorage.getItem('uid'), gid=localStorage.getItem('gid');
   if(key) document.getElementById('apiKey').value=key;
+  if(animKey) document.getElementById('animApiKey').value=animKey;
   if(uid) document.getElementById('userId').value=uid;
   if(gid) document.getElementById('groupId').value=gid;
-  if(key&&uid) document.getElementById('status').textContent='✅ Kredensial dimuat';
+  if((key||animKey)&&uid) document.getElementById('status').textContent=`✅ Kredensial dimuat · Utama ${key?'✓':'–'} · Animasi ${animKey?'✓':'–'}`;
 })();
 
 function saveKey(){
   const key=document.getElementById('apiKey').value.trim(),
+        animKey=document.getElementById('animApiKey').value.trim(),
         uid=document.getElementById('userId').value.trim(),
         gid=document.getElementById('groupId').value.trim();
-  if(!key||!uid) return alert('API Key dan User ID wajib!');
+  if(!uid) return alert('User ID wajib!');
+  if(!key&&!animKey) return alert('Isi minimal satu API Key!');
   if(gid && !/^\d+$/.test(gid)) return alert('Group ID harus angka!');
-  localStorage.setItem('key',key); localStorage.setItem('uid',uid); localStorage.setItem('gid',gid);
-  document.getElementById('status').textContent='✅ Tersimpan';
+  localStorage.setItem('key',key); localStorage.setItem('animKey',animKey); localStorage.setItem('uid',uid); localStorage.setItem('gid',gid);
+  document.getElementById('status').textContent=`✅ Tersimpan terpisah · Utama ${key?'✓':'–'} · Animasi ${animKey?'✓':'–'}`;
 }
 
 async function testKey(){
@@ -331,6 +342,24 @@ async function testKey(){
     const f=(d.report||[]).find(x=>x.resolvedId);
     if(f){document.getElementById('userId').value=f.resolvedId;localStorage.setItem('uid',String(f.resolvedId));}
     if(d.ok) st.insertAdjacentHTML('beforeend','<div style="color:#4dff9d">🎉 Siap upload!</div>');
+  }catch(e){st.style.color='#ff7b7b';st.textContent='❌ '+e.message;}
+}
+
+async function testAnimationKey(){
+  const key=document.getElementById('animApiKey').value.trim(),
+        uid=document.getElementById('userId').value.trim(),
+        gid=document.getElementById('groupId').value.trim();
+  if(!key||!uid) return alert('Isi API Key Animasi dan User ID dulu!');
+  const st=document.getElementById('status');
+  st.style.color='#ffd200'; st.textContent='🕺 Mengecek key animasi + legacy Asset Delivery...';
+  try{
+    const r=await fetch('/api/check-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:key,userId:uid,groupId:gid,mode:'animation'})});
+    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
+    if(!d.success){st.style.color='#ff7b7b';st.textContent='❌ '+(d.error||'Gagal');return;}
+    st.innerHTML=(d.report||[]).map(x=>`<div style="color:${x.ok?'#4dff9d':'#ff7b7b'}">${esc(x.msg)}</div>`).join('');
+    const f=(d.report||[]).find(x=>x.resolvedId);
+    if(f){document.getElementById('userId').value=f.resolvedId;localStorage.setItem('uid',String(f.resolvedId));}
+    if(d.ok) st.insertAdjacentHTML('beforeend','<div style="color:#4dff9d">🎉 Key animasi siap!</div>');
   }catch(e){st.style.color='#ff7b7b';st.textContent='❌ '+e.message;}
 }
 
@@ -883,15 +912,19 @@ function useId(id){
 }
 
 // ============================================================
-// ANIMATION: SEARCH + REUPLOAD
+// ANIMATION: SEARCH + UNLOCK MaxPartTranslation + REUPLOAD
 // ============================================================
+function animationCategory(q){
+  document.getElementById('animKeyword').value=q;
+  animationSearch();
+}
 async function animationSearch(){
   const q=document.getElementById('animKeyword').value.trim();
   if(!q) return alert('Ketik nama animasi dulu!');
   const btn=document.getElementById('animSearchBtn'), box=document.getElementById('animResults');
   btn.disabled=true; box.innerHTML='<p class="note">🔎 Mencari animasi publik...</p>';
   try{
-    const key=localStorage.getItem('key')||'';
+    const key=localStorage.getItem('animKey')||'';
     const r=await fetch('/api/search-animation?keyword='+encodeURIComponent(q)+'&limit=8',{headers:key?{'x-api-key':key}:{}});
     const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
     if(!d.success) throw new Error(d.error||'Pencarian gagal');
@@ -918,8 +951,8 @@ function animationReuploadDirect(){
 }
 
 async function animationReupload(id, encodedName=''){
-  const key=localStorage.getItem('key')||'', uid=localStorage.getItem('uid')||'', gid=localStorage.getItem('gid')||'';
-  if(!key||!uid) return alert('Isi dan Simpan API Key + User ID di panel Kredensial dulu!');
+  const key=localStorage.getItem('animKey')||'', uid=localStorage.getItem('uid')||'', gid=localStorage.getItem('gid')||'';
+  if(!key||!uid) return alert('Isi dan Simpan API Key Khusus Animasi + User ID di panel Kredensial dulu!');
   const loading=document.getElementById('animLoading'), result=document.getElementById('animResult');
   loading.classList.remove('hidden'); result.classList.add('hidden');
   document.getElementById('animLoadingText').textContent='⬇️ Download RBXM → upload Animation ke Roblox...';
@@ -927,12 +960,12 @@ async function animationReupload(id, encodedName=''){
     const name=encodedName?decodeURIComponent(encodedName):'';
     const r=await fetch('/api/reupload-animation/'+id,{
       method:'POST', headers:{'Content-Type':'application/json','x-api-key':key,'x-user-id':uid,'x-group-id':gid},
-      body:JSON.stringify({name})
+      body:JSON.stringify({name,stripMaxPartTranslation:true})
     });
     const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
     if(!d.success) throw new Error(d.error||`Reupload gagal (${r.status})`);
     result.className='result';
-    result.innerHTML=`✅ <b>Animasi berhasil direupload!</b><br>${esc(d.name)}<br>ID baru: <b>${esc(d.newAssetId)}</b><br>
+    result.innerHTML=`✅ <b>Animasi berhasil diperbaiki & direupload!</b><br>${esc(d.name)}<br>Rig: <b>${esc(d.rig||'Unknown')}</b> · MaxPartTranslation dihapus: <b>${esc(String(d.removedMaxPartTranslation||0))}</b><br>ID baru: <b>${esc(d.newAssetId)}</b><br>
       <code>rbxassetid://${esc(d.newAssetId)}</code>
       <div class="row" style="margin-top:8px"><button style="margin-top:0" onclick="copyId('${d.newAssetId}')">📋 Copy ID Baru</button><button style="margin-top:0" onclick="window.open('${d.storeUrl}','_blank')">🔗 Buka</button></div>`;
     result.scrollIntoView({behavior:'smooth',block:'center'});
@@ -1035,5 +1068,5 @@ function fmtTime(sec){
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a38bd3d1cf3ab58c',t:'MTc4OTAxNTk5MA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a38c04baf8a7de20',t:'MTc4OTAxNzk5Mw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
