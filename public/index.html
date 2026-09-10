@@ -208,7 +208,29 @@
   </section>
 
   <!-- ========================================================= -->
-  <!-- 4. GENERATE SCRIPT -->
+  <!-- 4. ANIMATION SPOOF -->
+  <!-- ========================================================= -->
+  <section>
+    <h2>🕺 Spoof Animasi <span class="badge">reupload</span></h2>
+    <label>Cari animasi publik</label>
+    <div class="row">
+      <input type="text" id="animKeyword" placeholder="Contoh: dance, walk, idle" onkeydown="if(event.key==='Enter')animationSearch()" style="flex:2">
+      <button id="animSearchBtn" style="margin-top:0" onclick="animationSearch()">🔎 Cari</button>
+    </div>
+    <div id="animResults"></div>
+    <div class="orline">— atau —</div>
+    <label>Reupload langsung dari ID Animation</label>
+    <div class="row">
+      <input type="text" id="animId" inputmode="numeric" placeholder="ID animasi / link Creator Store" style="flex:2">
+      <button id="animDirectBtn" style="margin-top:0" onclick="animationReuploadDirect()">♻️ Reupload</button>
+    </div>
+    <div id="animLoading" class="loading hidden"><div class="spinner"></div><span id="animLoadingText">Memproses animasi...</span></div>
+    <div id="animResult" class="result hidden"></div>
+    <p class="note">Membutuhkan API Key dengan izin <b>Assets: Read + Write</b>. Animasi diunduh sebagai RBXM resmi dari Roblox lalu diupload ke akun/grupmu. Gunakan hanya animasi milikmu atau yang diizinkan untuk disalin.</p>
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- 5. GENERATE SCRIPT -->
   <!-- ========================================================= -->
   <section>
     <h2>📜 Generate Script</h2>
@@ -845,6 +867,61 @@ function useId(id){
 }
 
 // ============================================================
+// ANIMATION: SEARCH + REUPLOAD
+// ============================================================
+async function animationSearch(){
+  const q=document.getElementById('animKeyword').value.trim();
+  if(!q) return alert('Ketik nama animasi dulu!');
+  const btn=document.getElementById('animSearchBtn'), box=document.getElementById('animResults');
+  btn.disabled=true; box.innerHTML='<p class="note">🔎 Mencari animasi publik...</p>';
+  try{
+    const r=await fetch('/api/search-animation?keyword='+encodeURIComponent(q)+'&limit=8');
+    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
+    if(!d.success) throw new Error(d.error||'Pencarian gagal');
+    if(!d.results?.length){box.innerHTML='<div class="result warn">Tidak ada animasi yang ditemukan.</div>';return;}
+    box.innerHTML=d.results.map(x=>`<div class="result" style="margin-top:9px">
+      <b>🕺 ${esc(x.name)}</b><br><span class="note">👤 ${esc(x.creator)} · ID: ${esc(x.id)} ${x.publicDomain?'· ✅ Public Domain':''}</span>
+      <div class="row" style="margin-top:8px">
+        <button style="margin-top:0" onclick="copyId('${x.id}')">📋 Copy ID</button>
+        <button style="margin-top:0" onclick="animationReupload('${x.id}','${encodeURIComponent(x.name)}')">♻️ Reupload</button>
+      </div>
+    </div>`).join('');
+  }catch(e){box.innerHTML=`<div class="result error">❌ ${esc(e.message)}</div>`;}
+  finally{btn.disabled=false;}
+}
+
+function animationReuploadDirect(){
+  const raw=document.getElementById('animId').value.trim();
+  const m=raw.match(/\d{5,}/);
+  if(!m) return alert('Masukkan ID animasi atau link Creator Store!');
+  document.getElementById('animId').value=m[0];
+  animationReupload(m[0],'');
+}
+
+async function animationReupload(id, encodedName=''){
+  const key=localStorage.getItem('key')||'', uid=localStorage.getItem('uid')||'', gid=localStorage.getItem('gid')||'';
+  if(!key||!uid) return alert('Isi dan Simpan API Key + User ID di panel Kredensial dulu!');
+  const loading=document.getElementById('animLoading'), result=document.getElementById('animResult');
+  loading.classList.remove('hidden'); result.classList.add('hidden');
+  document.getElementById('animLoadingText').textContent='⬇️ Download RBXM → upload Animation ke Roblox...';
+  try{
+    const name=encodedName?decodeURIComponent(encodedName):'';
+    const r=await fetch('/api/reupload-animation/'+id,{
+      method:'POST', headers:{'Content-Type':'application/json','x-api-key':key,'x-user-id':uid,'x-group-id':gid},
+      body:JSON.stringify({name})
+    });
+    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
+    if(!d.success) throw new Error(d.error||`Reupload gagal (${r.status})`);
+    result.className='result';
+    result.innerHTML=`✅ <b>Animasi berhasil direupload!</b><br>${esc(d.name)}<br>ID baru: <b>${esc(d.newAssetId)}</b><br>
+      <code>rbxassetid://${esc(d.newAssetId)}</code>
+      <div class="row" style="margin-top:8px"><button style="margin-top:0" onclick="copyId('${d.newAssetId}')">📋 Copy ID Baru</button><button style="margin-top:0" onclick="window.open('${d.storeUrl}','_blank')">🔗 Buka</button></div>`;
+    result.scrollIntoView({behavior:'smooth',block:'center'});
+  }catch(e){result.className='result error';result.innerHTML='❌ '+esc(e.message);}
+  finally{loading.classList.add('hidden');}
+}
+
+// ============================================================
 // GENERATE SCRIPT (+ Lua syntax highlight)
 // ============================================================
 async function generateScript(){
@@ -905,5 +982,5 @@ function fmtTime(sec){
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a38b9e208aa9d008',t:'MTc4OTAxMzc5MA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
