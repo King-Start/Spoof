@@ -101,7 +101,7 @@
         <button class="btn-secondary" onclick="testKey()">🔍 Tes</button>
       </div>
       <div id="status" style="text-align:center;margin-top:8px;color:#4dff9d;font-size:.85rem;line-height:1.6"></div>
-      <p class="note">Dibutuhkan hanya untuk <b>Upload Ulang</b>. Spoof + preview + convert bisa tanpa key. Buat key di <a href="https://create.roblox.com/dashboard/credentials" target="_blank">Creator Dashboard → Credentials</a>.</p>
+      <p class="note">Dibutuhkan untuk upload. Buat key di <a href="https://create.roblox.com/dashboard/credentials" target="_blank">Creator Dashboard → Credentials</a> dengan <b>assets: asset:read + asset:write</b>. Khusus download/reupload animasi, tambahkan juga <b>legacy-assets: legacy-asset:manage</b>. Jangan pernah masukkan `.ROBLOSECURITY`.</p>
     </details>
   </section>
 
@@ -226,7 +226,7 @@
     </div>
     <div id="animLoading" class="loading hidden"><div class="spinner"></div><span id="animLoadingText">Memproses animasi...</span></div>
     <div id="animResult" class="result hidden"></div>
-    <p class="note">Membutuhkan API Key dengan izin <b>Assets: Read + Write</b>. Hanya hasil bertanda <b>📦 Source tersedia</b> yang dapat direupload. Animasi dengan source terkunci tetap bisa dipakai memakai ID aslinya bila Roblox mengizinkan. Gunakan hanya animasi milikmu atau yang diizinkan untuk disalin.</p>
+    <p class="note">API Key wajib memiliki <b>assets: asset:read + asset:write</b> dan <b>legacy-assets: legacy-asset:manage</b>. Tanpa izin legacy, download selalu 403. Animasi privat orang lain tetap tidak dapat diambil. Jangan masukkan cookie `.ROBLOSECURITY`.</p>
   </section>
 
   <!-- ========================================================= -->
@@ -891,7 +891,8 @@ async function animationSearch(){
   const btn=document.getElementById('animSearchBtn'), box=document.getElementById('animResults');
   btn.disabled=true; box.innerHTML='<p class="note">🔎 Mencari animasi publik...</p>';
   try{
-    const r=await fetch('/api/search-animation?keyword='+encodeURIComponent(q)+'&limit=8');
+    const key=localStorage.getItem('key')||'';
+    const r=await fetch('/api/search-animation?keyword='+encodeURIComponent(q)+'&limit=8',{headers:key?{'x-api-key':key}:{}});
     const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
     if(!d.success) throw new Error(d.error||'Pencarian gagal');
     if(!d.results?.length){box.innerHTML='<div class="result warn">Tidak ada animasi yang ditemukan.</div>';return;}
@@ -1034,5 +1035,5 @@ function fmtTime(sec){
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a38bbe216ea39332',t:'MTc4OTAxNTEwMQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a38bd3d1cf3ab58c',t:'MTc4OTAxNTk5MA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
