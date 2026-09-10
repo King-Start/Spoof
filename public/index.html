@@ -189,7 +189,7 @@
       <div id="convertStatus">Format output: <b>MP3</b>. Convert me-render speed/pitch/volume + format.</div>
       <a id="dlConverted" class="dl-link hidden" href="#" download>⬇️ Download hasil convert</a>
 
-      <button id="uploadBtn" onclick="uploadReuse()">🚀 UPLOAD ULANG (INSTANT APPROVE!)</button>
+      <button id="uploadBtn" onclick="uploadReuse()">🚀 UPLOAD & PANTAU MODERASI</button>
       <div id="uploadLoading" class="loading hidden"><div class="spinner"></div><span id="uploadLoadingText">Upload ke Roblox...</span></div>
       <div id="uploadResult" class="result hidden"></div>
     </div>
@@ -208,6 +208,12 @@
     <input type="file" id="manualFile" accept=".mp3,.ogg,.wav,.flac,audio/*" class="hidden">
     <div id="manualLoading" class="loading hidden"><div class="spinner"></div>Memuat file ke studio...</div>
     <p class="note">File langsung masuk panel kontrol (play, edit, convert, upload) — tanpa spoof.</p>
+    <label>Cek ulang status ID audio yang pernah diupload</label>
+    <div class="row">
+      <input type="text" id="statusAssetId" inputmode="numeric" placeholder="Masukkan Asset ID" style="flex:2">
+      <button class="btn-secondary" style="margin-top:0" onclick="checkExistingModeration()">🛡 Pantau</button>
+    </div>
+    <div id="manualModerationStatus" class="result hidden"></div>
   </section>
 
   <!-- ========================================================= -->
@@ -307,11 +313,12 @@ let currentScript = '';
 // KREDENSIAL
 // ============================================================
 (function loadSaved(){
-  const key=localStorage.getItem('key'), animKey=localStorage.getItem('animKey'), uid=localStorage.getItem('uid'), gid=localStorage.getItem('gid');
+  const key=localStorage.getItem('key'), animKey=localStorage.getItem('animKey'), uid=localStorage.getItem('uid'), gid=localStorage.getItem('gid'), lastAssetId=localStorage.getItem('lastUploadedAssetId');
   if(key) document.getElementById('apiKey').value=key;
   if(animKey) document.getElementById('animApiKey').value=animKey;
   if(uid) document.getElementById('userId').value=uid;
   if(gid) document.getElementById('groupId').value=gid;
+  if(lastAssetId) document.getElementById('statusAssetId').value=lastAssetId;
   if((key||animKey)&&uid) document.getElementById('status').textContent=`✅ Kredensial dimuat · Utama ${key?'✓':'–'} · Animasi ${animKey?'✓':'–'}`;
 })();
 
@@ -843,9 +850,46 @@ function audioBufferToWav(buffer){
 }
 
 // ============================================================
-// UPLOAD ULANG (INSTANT APPROVE!)
+// UPLOAD ULANG + LIVE ROBLOX MODERATION WATCH
 // Pakai hasil convert bila masih fresh, kalau tidak convert otomatis dulu
 // ============================================================
+let moderationPollTimer=null;
+
+async function checkModerationNow(id,targetId='moderationStatus'){
+  const key=localStorage.getItem('key')||'';
+  const box=document.getElementById(targetId);
+  if(!box||!key) return;
+  try{
+    const r=await fetch('/api/asset-status/'+id,{headers:{'x-api-key':key}});
+    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
+    if(!d.success) throw new Error(d.error||`Cek status gagal (${r.status})`);
+    const look=d.state==='APPROVED'?'✅':d.state==='REJECTED'?'❌':'⏳';
+    const color=d.state==='APPROVED'?'#4dff9d':d.state==='REJECTED'?'#ff7b7b':'#ffd200';
+    box.style.color=color;
+    box.innerHTML=`${look} <b>Status Roblox: ${esc(d.label)}</b><br><small>Dicek ${new Date(d.checkedAt).toLocaleTimeString()}${d.terminal?' · pemantauan selesai':' · mengecek lagi 15 detik'}</small>`;
+    if(d.terminal){clearTimeout(moderationPollTimer);moderationPollTimer=null;return;}
+  }catch(e){
+    box.style.color='#ffb86b';
+    box.innerHTML=`⚠️ Status belum terbaca: ${esc(e.message)}<br><small>Mencoba lagi 15 detik...</small>`;
+  }
+  clearTimeout(moderationPollTimer);
+  moderationPollTimer=setTimeout(()=>checkModerationNow(id,targetId),15000);
+}
+
+function checkExistingModeration(){
+  const raw=document.getElementById('statusAssetId').value.trim();
+  const m=raw.match(/\d{5,}/);
+  if(!m) return alert('Masukkan Asset ID audio yang sudah diupload!');
+  if(!localStorage.getItem('key')) return alert('Simpan API Key Utama dengan asset:read dulu!');
+  const box=document.getElementById('manualModerationStatus');
+  box.classList.remove('hidden');
+  box.innerHTML='⏳ Mengambil status resmi Roblox...';
+  document.getElementById('statusAssetId').value=m[0];
+  localStorage.setItem('lastUploadedAssetId',m[0]);
+  clearTimeout(moderationPollTimer);
+  checkModerationNow(m[0],'manualModerationStatus');
+}
+
 async function uploadReuse(){
   if(!audioBuf||!spoofMeta.originalBlob) return alert('Spoof dulu!');
   const key=localStorage.getItem('key'), uid=localStorage.getItem('uid'), gid=localStorage.getItem('gid')||'';
@@ -881,15 +925,21 @@ async function uploadReuse(){
     el.classList.remove('hidden','error');
     if(d.success){
       el.innerHTML=
-        `✅ <strong>INSTANT APPROVE! Audio live (privat) ⚡</strong><br>`+
+        `✅ <strong>Upload diterima Roblox — menunggu keputusan moderasi</strong><br>`+
         `🎵 ${esc(d.name)}<br>`+
-        `⬇️ Hasil Upload: ID Baru = <strong style="color:#4dff9d">${esc(d.newAssetId)}</strong>${d.moderation?` · 🛡 ${esc(d.moderation)}`:''}<br>`+
+        `⬇️ ID Baru = <strong style="color:#4dff9d">${esc(d.newAssetId)}</strong><br>`+
         `📦 ${esc(d.size)} · ${esc(d.format)}<br>`+
+        `<div id="moderationStatus" class="result warn" style="margin-top:10px">⏳ Mengambil status moderasi resmi Roblox...</div>`+
         `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">`+
+        `<button class="btn-secondary" onclick="checkModerationNow('${esc(d.newAssetId)}')" style="width:auto;padding:8px 16px">🔄 Cek Sekarang</button>`+
         `<button class="btn-secondary" onclick="copyId('${esc(d.newAssetId)}')" style="width:auto;padding:8px 16px">📋 Copy ID</button>`+
         `<button class="btn-secondary" onclick="useId('${esc(d.newAssetId)}')" style="width:auto;padding:8px 16px;background:#f7971e;color:#111;border:none">📜 Generate Script</button>`+
         `</div>`;
       document.getElementById('scriptId').value=d.newAssetId;
+      document.getElementById('statusAssetId').value=d.newAssetId;
+      localStorage.setItem('lastUploadedAssetId',String(d.newAssetId));
+      clearTimeout(moderationPollTimer);
+      checkModerationNow(d.newAssetId);
     }else{
       el.classList.add('error');
       el.innerHTML=`❌ ${esc(d.error||'Gagal upload')}`;
