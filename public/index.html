@@ -4,90 +4,90 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark">
-  <title>🦁 SirLion Audio Studio</title>
+  <meta name="theme-color" content="#070914">
+  <title>SirLion Studio — Roblox Creator Toolkit</title>
   <style>
+    :root{--bg:#070914;--panel:rgba(18,22,43,.78);--panel2:#11152a;--line:rgba(148,163,255,.14);--muted:#9299b5;--text:#f5f7ff;--violet:#8b5cf6;--blue:#38bdf8;--cyan:#22d3ee;--green:#34d399;--red:#fb7185;--amber:#fbbf24;--radius:20px}
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Segoe UI',sans-serif;background:#0a0a0a;color:#fff;padding:20px;min-height:100vh}
-    .container{max-width:720px;margin:0 auto}
-    header{text-align:center;padding:24px 0}
-    h1{font-size:1.9rem;background:linear-gradient(45deg,#f7971e,#ffd200);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-    header p{color:#888;margin-top:6px;font-size:.9rem}
-    section{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:20px;margin-bottom:18px}
-    h2{font-size:1.05rem;margin-bottom:12px}
-    .badge{display:inline-block;background:rgba(0,255,120,.15);color:#4dff9d;font-size:.72rem;padding:3px 10px;border-radius:20px;margin-left:6px;vertical-align:middle}
-    label{display:block;font-size:.8rem;color:#aaa;margin:10px 0 4px}
-    input[type=text],input[type=password],input[type=number],select{width:100%;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff;font-size:.95rem}
-    input:focus,select:focus{outline:none;border-color:#f7971e}
-    select option{background:#1a1a1a}
-    button{width:100%;padding:13px;margin-top:12px;border-radius:8px;border:none;background:linear-gradient(45deg,#f7971e,#ffd200);color:#111;font-weight:bold;font-size:.95rem;cursor:pointer;transition:opacity .2s,transform .1s}
-    button:hover{opacity:.88}
-    button:active{transform:scale(.98)}
-    button:disabled{opacity:.5;cursor:not-allowed}
-    .btn-secondary{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.15)}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
-    .row>*{flex:1;min-width:140px}
-    .result{padding:16px;background:rgba(0,255,120,.08);border:1px solid rgba(0,255,120,.25);border-radius:10px;margin-top:12px;font-size:.92rem;line-height:1.7;word-break:break-all}
-    .result.error{background:rgba(255,60,60,.1);border-color:rgba(255,60,60,.3)}
-    .result.warn{background:rgba(255,180,0,.08);border-color:rgba(255,180,0,.3)}
-    .hidden{display:none!important}
-    .loading{padding:16px;text-align:center;color:#aaa}
-    .spinner{width:28px;height:28px;border:3px solid #333;border-top:3px solid #f7971e;border-radius:50%;margin:0 auto 10px;animation:spin 1s linear infinite}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    pre{background:#111;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:14px;font-size:.78rem;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:340px;overflow-y:auto;font-family:Consolas,Menlo,monospace;line-height:1.6}
-    .note{font-size:.75rem;color:#777;margin-top:10px;line-height:1.6}
-    a{color:#f7971e}
-    details summary{cursor:pointer;color:#f7971e;font-size:.85rem;margin-bottom:10px}
-    footer{text-align:center;color:#555;font-size:.75rem;padding:10px 0 20px}
-
-    .dropzone{border:2px dashed rgba(255,255,255,.2);border-radius:10px;padding:26px;text-align:center;color:#999;cursor:pointer;transition:all .2s}
-    .dropzone:hover,.dropzone.drag{border-color:#f7971e;color:#f7971e;background:rgba(247,151,30,.06)}
-    .dropzone .filename{color:#ffd200;font-weight:bold;margin-top:8px;display:block;word-break:break-all}
-
-    /* ===== PANEL KONTROL STUDIO ===== */
-    #studioPanel{background:rgba(247,151,30,.05);border:1px solid rgba(247,151,30,.3);border-radius:12px;padding:18px;margin-top:14px}
-    .track-title{font-size:1.05rem;font-weight:bold;word-break:break-all}
-    .track-meta{font-size:.78rem;color:#999;margin-top:4px;line-height:1.7}
-    .transport{display:flex;gap:10px;margin-top:12px}
-    .transport button{margin-top:0;font-size:1rem;padding:14px}
-    #playBtn{flex:2}
-    #resetBtn{flex:1}
-    .progress{margin-top:12px}
-    .progress-track{height:8px;background:rgba(255,255,255,.1);border-radius:6px;overflow:hidden;cursor:pointer}
-    .progress-fill{height:100%;width:0%;background:linear-gradient(90deg,#f7971e,#ffd200);border-radius:6px}
-    .progress-time{display:flex;justify-content:space-between;font-size:.72rem;color:#999;margin-top:4px}
-    .ctl{margin-top:12px}
-    .ctl-head{display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:2px}
-    .ctl-head .val{color:#ffd200;font-weight:bold;font-variant-numeric:tabular-nums}
-    input[type=range]{width:100%;accent-color:#f7971e;height:28px;cursor:pointer}
-    .fmt-row{display:flex;gap:8px;margin-top:14px;align-items:stretch}
-    .seg{display:flex;flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;overflow:hidden}
-    .seg button{flex:1;margin:0;border-radius:0;background:transparent;color:#aaa;font-size:.85rem;padding:12px 4px}
-    .seg button.active{background:linear-gradient(45deg,#f7971e,#ffd200);color:#111}
-    #convertBtn{flex:1;margin-top:0;white-space:nowrap}
-    #convertStatus{font-size:.78rem;color:#999;margin-top:8px;line-height:1.6}
-    #uploadBtn{font-size:1.05rem;padding:16px;margin-top:14px;box-shadow:0 0 24px rgba(247,151,30,.35)}
-    .dl-link{display:inline-block;margin-top:8px;font-size:.82rem}
-
-    /* ===== LUA HIGHLIGHT ===== */
-    .tk-c{color:#6a9955;font-style:italic}
-    .tk-s{color:#ce9178}
-    .tk-k{color:#c586c0;font-weight:bold}
-    .tk-n{color:#4ec9b0}
-    @media(max-width:500px){.fmt-row{flex-direction:column}}
+    html{scroll-behavior:smooth}
+    body{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);padding:28px 18px 50px;min-height:100vh;overflow-x:hidden;line-height:1.5}
+    body:before,body:after{content:"";position:fixed;border-radius:50%;filter:blur(110px);opacity:.18;pointer-events:none;z-index:-1;animation:floatGlow 12s ease-in-out infinite alternate}
+    body:before{width:520px;height:520px;background:#713cff;top:-180px;left:-130px}
+    body:after{width:500px;height:500px;background:#008cff;right:-170px;bottom:-200px;animation-delay:-5s}
+    @keyframes floatGlow{to{transform:translate3d(60px,35px,0) scale(1.15)}}
+    .container{max-width:1120px;margin:0 auto}
+    header{display:flex;align-items:center;gap:18px;padding:18px 4px 26px;text-align:left}
+    .brand-mark{width:58px;height:58px;display:grid;place-items:center;border-radius:18px;background:linear-gradient(135deg,var(--violet),var(--blue));font-weight:900;font-size:1.08rem;letter-spacing:-1px;box-shadow:0 14px 42px rgba(124,92,246,.38);position:relative;overflow:hidden}
+    .brand-mark:after{content:"";position:absolute;width:70px;height:18px;background:#fff;opacity:.2;transform:rotate(-35deg);animation:shine 5s ease-in-out infinite}
+    @keyframes shine{0%,70%{left:-100px}100%{left:100px}}
+    .brand-copy{flex:1}.eyebrow,.mini-kicker{font-size:.66rem;letter-spacing:.18em;color:#8ea0d5;font-weight:800}
+    h1{font-size:clamp(1.75rem,4vw,2.45rem);letter-spacing:-.055em;line-height:1.05}h1 span{background:linear-gradient(90deg,#a78bfa,#38bdf8,#67e8f9);background-size:200%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:gradientMove 5s linear infinite}
+    @keyframes gradientMove{to{background-position:200% center}}
+    header p{color:var(--muted);margin-top:7px;font-size:.88rem;max-width:640px}
+    .header-status{display:flex;align-items:center;gap:8px;padding:9px 13px;border-radius:99px;border:1px solid rgba(52,211,153,.18);background:rgba(52,211,153,.07);color:#9af1cf;font-size:.72rem;font-weight:700}
+    .live-dot{width:7px;height:7px;background:var(--green);border-radius:50%;box-shadow:0 0 0 0 rgba(52,211,153,.5);animation:pulse 2s infinite}@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(52,211,153,0)}}
+    .top-tabs{display:flex;gap:7px;padding:7px;overflow-x:auto;position:sticky;top:10px;z-index:20;background:rgba(10,12,27,.78);border:1px solid var(--line);border-radius:17px;backdrop-filter:blur(20px);box-shadow:0 12px 38px rgba(0,0,0,.28);scrollbar-width:none}.top-tabs::-webkit-scrollbar{display:none}
+    .top-tabs button{width:auto;margin:0;padding:11px 16px;background:transparent;border:1px solid transparent;color:#8f96b2;border-radius:12px;white-space:nowrap;box-shadow:none;font-size:.78rem}.top-tabs button span{margin-right:6px;color:#818cf8}
+    .top-tabs button:hover{opacity:1;background:rgba(255,255,255,.04);color:#fff;transform:translateY(-1px)}
+    .top-tabs button.active{color:#fff;border-color:rgba(139,92,246,.35);background:linear-gradient(135deg,rgba(139,92,246,.25),rgba(56,189,248,.12));box-shadow:inset 0 1px rgba(255,255,255,.07),0 5px 18px rgba(76,50,170,.16)}
+    .workspace-intro{display:flex;align-items:end;justify-content:space-between;gap:18px;padding:28px 4px 14px}.workspace-intro h3{font-size:1.45rem;letter-spacing:-.03em;margin-top:2px}.feature-pills{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.feature-pills span{font-size:.68rem;color:#a7aec7;background:rgba(255,255,255,.035);border:1px solid var(--line);padding:6px 9px;border-radius:99px}
+    section{background:linear-gradient(145deg,rgba(20,24,47,.88),rgba(12,15,33,.82));border:1px solid var(--line);border-radius:var(--radius);padding:clamp(20px,4vw,30px);margin-bottom:18px;box-shadow:0 22px 55px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.04);position:relative;overflow:hidden;transition:transform .3s,border-color .3s,box-shadow .3s;animation:cardIn .42s both}
+    section:before{content:"";position:absolute;inset:0 auto auto 0;width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(139,92,246,.65),rgba(56,189,248,.45),transparent)}
+    section:hover{border-color:rgba(139,92,246,.25);box-shadow:0 26px 68px rgba(0,0,0,.3),0 0 40px rgba(104,78,220,.05)}
+    @keyframes cardIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+    section.tab-page:not(.active){display:none}.tab-page.active{display:block}
+    .credentials-card{padding:0;overflow:hidden}.credentials-card details{padding:17px 22px}.credentials-card summary{margin:0!important;list-style:none;display:flex;align-items:center;gap:8px;font-weight:750;color:#c5cae0!important}.credentials-card summary:after{content:"Configure keys, identity & group";color:#737b9a;font-size:.7rem;font-weight:500;margin-left:auto}.credentials-card details[open] summary{margin-bottom:18px!important}
+    .section-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:13px;background:linear-gradient(135deg,rgba(139,92,246,.25),rgba(56,189,248,.12));border:1px solid rgba(139,92,246,.25);color:#a9b7ff;font-weight:900;margin-bottom:15px;box-shadow:0 8px 25px rgba(73,55,165,.15)}
+    h2{font-size:1.2rem;letter-spacing:-.02em;margin-bottom:4px}.section-lead{color:var(--muted);font-size:.8rem;margin-bottom:20px;max-width:680px}
+    .badge{display:inline-block;background:rgba(52,211,153,.09);border:1px solid rgba(52,211,153,.16);color:#75e8bb;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;padding:4px 8px;border-radius:20px;margin-left:7px;vertical-align:middle}
+    label{display:block;font-size:.72rem;font-weight:700;color:#aeb5cd;margin:14px 0 6px;letter-spacing:.01em}
+    input[type=text],input[type=password],input[type=number],select,textarea{width:100%;padding:12px 14px!important;border-radius:11px!important;border:1px solid rgba(148,163,184,.16)!important;background:rgba(5,8,20,.52)!important;color:#eef1ff!important;font:inherit;font-size:.86rem!important;transition:border-color .2s,box-shadow .2s,background .2s;resize:vertical}
+    input::placeholder,textarea::placeholder{color:#59617d}input:focus,select:focus,textarea:focus{outline:none;border-color:rgba(139,92,246,.65)!important;background:rgba(8,11,27,.75)!important;box-shadow:0 0 0 4px rgba(139,92,246,.1)}select option{background:#101429}
+    button{width:100%;padding:12px 15px;margin-top:12px;border-radius:11px;border:1px solid rgba(139,92,246,.34);background:linear-gradient(135deg,#7c55ed,#388ee9);color:#fff;font-weight:750;font-size:.84rem;cursor:pointer;transition:opacity .2s,transform .2s,box-shadow .2s;box-shadow:0 8px 22px rgba(85,64,190,.18)}button:hover{opacity:1;transform:translateY(-2px);box-shadow:0 12px 28px rgba(85,64,190,.28)}button:active{transform:scale(.985)}button:disabled{opacity:.43;cursor:not-allowed;transform:none}
+    .btn-secondary{background:rgba(255,255,255,.045);color:#d5daeb;border:1px solid rgba(255,255,255,.1);box-shadow:none}.btn-secondary:hover{background:rgba(255,255,255,.075);border-color:rgba(139,92,246,.3)}
+    .row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:150px}
+    .result{padding:15px;background:rgba(52,211,153,.065);border:1px solid rgba(52,211,153,.2);border-radius:13px;margin-top:12px;font-size:.81rem;line-height:1.7;word-break:break-word}.result.error{background:rgba(251,113,133,.075);border-color:rgba(251,113,133,.23)}.result.warn{background:rgba(251,191,36,.065);border-color:rgba(251,191,36,.2)}
+    .hidden{display:none!important}.loading{padding:18px;text-align:center;color:#9ca4bf;font-size:.8rem}.spinner{width:27px;height:27px;border:3px solid rgba(255,255,255,.08);border-top-color:#8b5cf6;border-right-color:#38bdf8;border-radius:50%;margin:0 auto 10px;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+    pre{background:#070a17;border:1px solid var(--line);border-radius:13px;padding:17px;font-size:.76rem;overflow:auto;white-space:pre-wrap;word-break:break-word;max-height:380px;font-family:"SFMono-Regular",Consolas,monospace;line-height:1.65}.note{font-size:.7rem;color:#737b99;margin-top:10px;line-height:1.65}a{color:#70c9fa;text-decoration:none}a:hover{text-decoration:underline}details summary{cursor:pointer;color:#a99af8;font-size:.8rem;margin-bottom:10px}footer{text-align:center;color:#4d5571;font-size:.68rem;padding:18px 0}
+    .dropzone{border:1px dashed rgba(139,92,246,.38);border-radius:15px;padding:34px 24px;text-align:center;color:#8b94b4;cursor:pointer;background:linear-gradient(135deg,rgba(139,92,246,.045),rgba(56,189,248,.025));transition:all .3s;position:relative}.dropzone:hover,.dropzone.drag{border-color:#8b5cf6;color:#c4b5fd;background:rgba(139,92,246,.08);transform:translateY(-2px);box-shadow:0 14px 35px rgba(41,27,110,.15)}.dropzone .filename{color:#7dd3fc;font-weight:700;margin-top:8px;display:block;word-break:break-all}
+    #studioPanel{background:linear-gradient(145deg,rgba(139,92,246,.08),rgba(56,189,248,.035));border:1px solid rgba(139,92,246,.24);border-radius:16px;padding:22px;margin-top:17px;box-shadow:inset 0 1px rgba(255,255,255,.04)}.track-title{font-size:1rem;font-weight:800;word-break:break-word}.track-meta{font-size:.7rem;color:#8c94af;margin-top:5px;line-height:1.7}.transport{display:flex;gap:9px;margin-top:15px}.transport button{margin-top:0;font-size:.82rem;padding:12px}#playBtn{flex:2}#resetBtn{flex:1}.progress{margin-top:15px}.progress-track{height:6px;background:rgba(255,255,255,.08);border-radius:8px;overflow:hidden;cursor:pointer}.progress-fill{height:100%;width:0;background:linear-gradient(90deg,#8b5cf6,#38bdf8,#67e8f9);border-radius:8px;box-shadow:0 0 12px #8b5cf6}.progress-time{display:flex;justify-content:space-between;font-size:.64rem;color:#737b96;margin-top:5px}.ctl{margin-top:13px}.ctl-head{display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:1px}.ctl-head .val{color:#8ad8ff;font-weight:800;font-variant-numeric:tabular-nums}input[type=range]{width:100%;accent-color:#8b5cf6;height:26px;cursor:pointer}.fmt-row{display:flex;gap:8px;margin-top:15px;align-items:stretch}.seg{display:flex;flex:1;background:rgba(0,0,0,.17);border:1px solid var(--line);border-radius:11px;overflow:hidden}.seg button{flex:1;margin:0;border:0;border-radius:0;background:transparent;color:#7f88a6;box-shadow:none;font-size:.74rem;padding:11px 4px}.seg button.active{background:linear-gradient(135deg,#7652df,#3389db);color:#fff}#convertBtn{flex:1;margin-top:0;white-space:nowrap}#convertStatus{font-size:.7rem;color:#78819e;margin-top:9px;line-height:1.6}#uploadBtn{font-size:.91rem;padding:15px;margin-top:15px;box-shadow:0 10px 32px rgba(99,67,214,.3)}.dl-link{display:inline-block;margin-top:8px;font-size:.74rem}
+    #rescueBox{margin-top:15px;padding:18px;border-radius:15px;background:rgba(251,191,36,.045);border:1px solid rgba(251,191,36,.16)}#rescueTitle{font-weight:800;color:#fcd477;margin-bottom:4px}#rescueMsg{font-size:.75rem;color:#9ca4bc;line-height:1.65}.orline{color:#555f7b;text-align:center;font-size:.67rem;margin:15px 0}.sr-row{display:flex;align-items:center;gap:12px;padding:12px;margin-top:8px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px}.sr-info{flex:1;min-width:0}.sr-name{font-size:.8rem;font-weight:750}.sr-meta{font-size:.66rem;color:#7d86a3;margin-top:3px}.sr-use{width:auto;margin:0;padding:8px 12px;font-size:.7rem}
+    .tk-c{color:#6eaa78;font-style:italic}.tk-s{color:#f19a89}.tk-k{color:#c898ff;font-weight:bold}.tk-n{color:#61d6c6}
+    @media(min-width:900px){section[data-tab="audio"]{padding-left:34px;padding-right:34px}.credentials-card details[open]{display:grid;grid-template-columns:1fr 1fr;column-gap:14px}.credentials-card details[open] summary,.credentials-card details[open] .note,.credentials-card details[open] #status,.credentials-card details[open] .row{grid-column:1/-1}}
+    @media(max-width:650px){body{padding:14px 10px 35px}header{gap:12px;padding-top:8px}.brand-mark{width:48px;height:48px;border-radius:14px}.header-status{display:none}.brand-copy p{font-size:.72rem}.top-tabs{top:6px;border-radius:14px}.top-tabs button{padding:10px 12px}.workspace-intro{align-items:flex-start;flex-direction:column;padding-top:22px}.feature-pills{justify-content:flex-start}.fmt-row{flex-direction:column}section{border-radius:16px;padding:20px 16px}.credentials-card summary:after{content:"Setup"}.row>*{min-width:125px}}
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
   </style>
 </head>
 <body>
 <div class="container">
 
   <header>
-    <h1>🦁 SirLion Audio Studio</h1>
-    <p>Spoof · Edit · Convert · Upload · Generate Script</p>
+    <div class="brand-mark">SL</div>
+    <div class="brand-copy">
+      <div class="eyebrow">ROBLOX CREATOR TOOLKIT</div>
+      <h1>SirLion <span>Studio</span></h1>
+      <p>Audio processing, asset publishing, collaboration, and creator utilities — in one workspace.</p>
+    </div>
+    <div class="header-status"><span class="live-dot"></span><span>Open Cloud</span></div>
   </header>
+
+  <nav class="top-tabs" aria-label="Navigasi fitur">
+    <button class="tab-btn active" data-target="audio" onclick="openTab('audio',this)"><span>◉</span> Audio Studio</button>
+    <button class="tab-btn" data-target="collab" onclick="openTab('collab',this)"><span>◎</span> Collaborator</button>
+    <button class="tab-btn" data-target="animation" onclick="openTab('animation',this)"><span>◆</span> Animation</button>
+    <button class="tab-btn" data-target="model" onclick="openTab('model',this)"><span>◇</span> Model</button>
+    <button class="tab-btn" data-target="script" onclick="openTab('script',this)"><span>⌘</span> Script</button>
+  </nav>
+
+  <div class="workspace-intro">
+    <div><span class="mini-kicker">CURRENT WORKSPACE</span><h3 id="workspaceTitle">Audio Studio</h3></div>
+    <div class="feature-pills"><span>⚡ Fast workflow</span><span>🔐 No cookies</span><span>☁ Open Cloud</span></div>
+  </div>
 
   <!-- ========================================================= -->
   <!-- 1. KREDENSIAL -->
   <!-- ========================================================= -->
-  <section>
+  <section class="credentials-card">
     <details>
       <summary>🔑 Kredensial Open Cloud</summary>
       <label>API Key Utama — Audio & Model</label>
@@ -111,8 +111,8 @@
   <!-- ========================================================= -->
   <!-- 2. SPOOF ID -->
   <!-- ========================================================= -->
-  <section>
-    <h2>🔍 Spoof ID <span class="badge">core feature</span></h2>
+  <section class="tab-page active" data-tab="audio">
+    <div class="section-icon">◉</div><h2>Audio Finder & Editor <span class="badge">core</span></h2><p class="section-lead">Ambil audio publik, preview, ubah karakter suaranya, lalu publish ulang.</p>
     <div class="row">
       <input type="text" id="spoofId" placeholder="ID / link store — cth: 1848350665" inputmode="numeric" onkeydown="if(event.key==='Enter')spoofAndPreview()" style="flex:2">
       <button id="spoofBtn" style="margin-top:0" onclick="spoofAndPreview()">🔍 Spoof &amp; Preview</button>
@@ -198,8 +198,8 @@
   <!-- ========================================================= -->
   <!-- 3. UPLOAD MANUAL -->
   <!-- ========================================================= -->
-  <section>
-    <h2>📁 Upload Manual <span class="badge">maks. 10 musik</span></h2>
+  <section class="tab-page active" data-tab="audio">
+    <div class="section-icon">↥</div><h2>Batch Audio Upload <span class="badge">1–10 tracks</span></h2><p class="section-lead">Masukkan beberapa lagu dan gunakan satu konfigurasi studio untuk semuanya.</p>
     <div class="dropzone" id="manualDrop" onclick="document.getElementById('manualFile').click()">
       📁 Klik / tarik 1–10 file audio ke sini
       <span style="font-size:.75rem;display:block;margin-top:6px">MP3 · OGG · WAV · FLAC — maks 20 MB per file</span>
@@ -218,6 +218,15 @@
     </div>
     <div id="manualModerationStatus" class="result hidden"></div>
 
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- COLLABORATOR MASSAL -->
+  <!-- ========================================================= -->
+  <section class="tab-page" data-tab="collab">
+    <div class="section-icon">◎</div>
+    <h2>Collaborator Massal <span class="badge">asset × user</span></h2>
+    <p class="section-lead">Berikan permission Use ke banyak audio dan banyak pengguna dalam satu antrean terkontrol.</p>
     <label style="margin-top:18px">Tambahkan kolaborator audio secara massal</label>
     <textarea id="collabAssetIds" inputmode="numeric" rows="5" placeholder="Asset ID audio, pisahkan dengan koma / spasi / baris baru&#10;1627373882833,&#10;27383829889373," style="width:100%;box-sizing:border-box;padding:12px;border-radius:8px;background:#111827;color:#fff;border:1px solid #374151"></textarea>
     <label>ID tujuan kolaborator</label>
@@ -231,8 +240,8 @@
   <!-- ========================================================= -->
   <!-- 4. ANIMATION SPOOF -->
   <!-- ========================================================= -->
-  <section>
-    <h2>🕺 Spoof Animasi <span class="badge">reupload</span></h2>
+  <section class="tab-page" data-tab="animation">
+    <div class="section-icon">◆</div><h2>Animation Repair <span class="badge">reupload</span></h2><p class="section-lead">Temukan, perbaiki MaxPartTranslation, dan terbitkan animation sebagai ID baru.</p>
     <label>Cari animasi publik</label>
     <div class="row">
       <input type="text" id="animKeyword" placeholder="Contoh: dance, emote, walk" onkeydown="if(event.key==='Enter')animationSearch()" style="flex:2">
@@ -258,8 +267,8 @@
   <!-- ========================================================= -->
   <!-- 5. UPLOAD MODEL -->
   <!-- ========================================================= -->
-  <section>
-    <h2>📦 Upload Model Roblox <span class="badge">RBXM</span></h2>
+  <section class="tab-page" data-tab="model">
+    <div class="section-icon">◇</div><h2>Model Publisher <span class="badge">RBXM</span></h2><p class="section-lead">Publish file model Roblox melalui Open Cloud dengan creator credentials milikmu.</p>
     <label>Nama model</label>
     <input type="text" id="modelName" maxlength="50" placeholder="Otomatis dari nama file">
     <label style="margin-top:12px">File model</label>
@@ -274,8 +283,8 @@
   <!-- ========================================================= -->
   <!-- 6. GENERATE SCRIPT -->
   <!-- ========================================================= -->
-  <section>
-    <h2>📜 Generate Script</h2>
+  <section class="tab-page" data-tab="script">
+    <div class="section-icon">⌘</div><h2>Lua Script Generator</h2><p class="section-lead">Buat snippet audio siap pakai untuk Client, Server, atau GUI Roblox.</p>
     <label>Music ID</label>
     <input type="text" id="scriptId" placeholder="ID audio (otomatis terisi)" inputmode="numeric">
     <div class="row">
@@ -305,10 +314,22 @@
     </div>
   </section>
 
-  <footer>SirLion Audio Studio v1.0 · Spoof publik + Open Cloud resmi · Audio privat milikmu</footer>
+  <footer>SirLion Studio v2.0 · Built for Roblox creators · Open Cloud only</footer>
 </div>
 
 <script>
+// ============================================================
+// NAVIGASI WORKSPACE
+// ============================================================
+function openTab(name,button){
+  document.querySelectorAll('.tab-page').forEach(el=>el.classList.toggle('active',el.dataset.tab===name));
+  document.querySelectorAll('.tab-btn').forEach(el=>el.classList.toggle('active',el.dataset.target===name));
+  const titles={audio:'Audio Studio',collab:'Collaborator',animation:'Animation Repair',model:'Model Publisher',script:'Script Generator'};
+  document.getElementById('workspaceTitle').textContent=titles[name]||'Workspace';
+  if(button&&window.innerWidth<650)button.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'});
+  window.scrollTo({top:document.querySelector('.workspace-intro').offsetTop-90,behavior:'smooth'});
+}
+
 // ============================================================
 // STATE GLOBAL
 // ============================================================
@@ -463,6 +484,7 @@ async function spoofAndPreview(){
 // MASUK STUDIO — satu pintu untuk SEMUA sumber (spoof/link/file)
 // ============================================================
 async function loadIntoStudio({blob,name,creator,id,format,storeUrl}){
+  stopPlayback();offsetSec=0;
   AC = AC || new (window.AudioContext||window.webkitAudioContext)();
   if(AC.state==='suspended') await AC.resume();
   const ab=await blob.arrayBuffer();
@@ -480,6 +502,7 @@ async function loadIntoStudio({blob,name,creator,id,format,storeUrl}){
     (id?` · 🆔 ${esc(id)}`:` · 🔗 sumber luar`)+
     (storeUrl?`<br><a href="${storeUrl}" target="_blank" rel="noopener">▶ ${storeUrl.includes('youtube.com')?'Buka di YouTube':'Lihat di Creator Store'}</a>`:'');
   document.getElementById('timeTotal').textContent=fmtTime(audioBuf.duration);
+  document.getElementById('timeCur').textContent='0:00';document.getElementById('progressFill').style.width='0%';
   if(id && /^\d+$/.test(id)) document.getElementById('scriptId').value=id;
   resetSliders();
   converted={blob:null,format:null,key:null};
@@ -490,6 +513,64 @@ async function loadIntoStudio({blob,name,creator,id,format,storeUrl}){
   document.getElementById('studioPanel').classList.remove('hidden');
   document.getElementById('studioPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
+
+// ============================================================
+// AUDIO TRANSPORT & STUDIO CONTROLS
+// ============================================================
+function settings(){return {speed:Number(document.getElementById('speed').value),pitch:Number(document.getElementById('pitch').value),volume:Number(document.getElementById('volume').value)};}
+function effRate(s){return Math.max(.05,Number(s.speed)||1);}
+function settingsKey(){const s=settings();return `${s.speed}|${s.pitch}|${s.volume}|${outFormat}`;}
+function resetSliders(){
+  document.getElementById('speed').value=1;document.getElementById('pitch').value=0;document.getElementById('volume').value=100;onSlider();
+}
+function setFormat(fmt){
+  outFormat=fmt;
+  ['mp3','ogg','wav'].forEach(x=>document.getElementById('fmt'+x[0].toUpperCase()+x.slice(1)).classList.toggle('active',x===fmt));
+  updateStaleHint();
+}
+function onSlider(){
+  const s=settings();
+  document.getElementById('speedVal').textContent=s.speed.toFixed(2)+'x';
+  document.getElementById('pitchVal').textContent=(s.pitch>=0?'+':'')+s.pitch+' st';
+  document.getElementById('volumeVal').textContent=Math.round(s.volume)+'%';
+  if(gainNode)gainNode.gain.value=s.volume/100;
+  updateStaleHint();
+}
+function updateStaleHint(){
+  const st=document.getElementById('convertStatus');
+  if(!st)return;
+  const fresh=converted.blob&&converted.key===settingsKey();
+  st.innerHTML=`Format output: <b>${outFormat.toUpperCase()}</b>. `+(fresh?'✅ Hasil convert sesuai pengaturan saat ini.':'Perubahan akan dirender saat convert/upload.');
+}
+function stopPlayback(){
+  if(playing&&srcNode){offsetSec=Math.min(audioBuf?.duration||0,offsetSec+(AC.currentTime-startCtxTime)*effRate(settings()));}
+  playing=false;cancelAnimationFrame(rafId);rafId=null;
+  if(srcNode){try{srcNode.onended=null;srcNode.stop();}catch{}srcNode.disconnect();srcNode=null;}
+  const b=document.getElementById('playBtn');if(b)b.textContent='▶ PLAY';
+}
+function startPlayback(){
+  if(!audioBuf)return;
+  if(offsetSec>=audioBuf.duration-.02)offsetSec=0;
+  const s=settings();srcNode=AC.createBufferSource();gainNode=AC.createGain();srcNode.buffer=audioBuf;
+  srcNode.playbackRate.value=s.speed/Math.pow(2,s.pitch/12);srcNode.detune.value=s.pitch*100;gainNode.gain.value=s.volume/100;
+  srcNode.connect(gainNode);gainNode.connect(AC.destination);startCtxTime=AC.currentTime;playing=true;
+  srcNode.onended=()=>{if(playing){playing=false;offsetSec=0;document.getElementById('playBtn').textContent='▶ PLAY';drawProgress();}};
+  srcNode.start(0,offsetSec);document.getElementById('playBtn').textContent='❚❚ PAUSE';drawProgress();
+}
+async function togglePlay(){
+  if(!audioBuf)return alert('Masukkan audio dulu!');
+  AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')await AC.resume();
+  if(playing)stopPlayback();else startPlayback();
+}
+function drawProgress(){
+  if(!audioBuf)return;const current=playing?Math.min(audioBuf.duration,offsetSec+(AC.currentTime-startCtxTime)*effRate(settings())):offsetSec;
+  document.getElementById('progressFill').style.width=(current/audioBuf.duration*100)+'%';document.getElementById('timeCur').textContent=fmtTime(current);
+  if(playing)rafId=requestAnimationFrame(drawProgress);
+}
+function seek(event){
+  if(!audioBuf)return;const rect=event.currentTarget.getBoundingClientRect(),was=playing;if(was)stopPlayback();offsetSec=Math.max(0,Math.min(audioBuf.duration,(event.clientX-rect.left)/rect.width*audioBuf.duration));drawProgress();if(was)startPlayback();
+}
+function resetAll(){stopPlayback();offsetSec=0;resetSliders();drawProgress();}
 
 // ============================================================
 // PANEL PENYELAMAT — 4 jalan keluar saat ID privat/gagal
@@ -863,6 +944,13 @@ async function uploadManualQueueWithSettings(){
   const key=localStorage.getItem('key')||'', uid=localStorage.getItem('uid')||'', gid=localStorage.getItem('gid')||'';
   if(!key||!uid) return alert('Simpan API Key Utama dan User ID dulu!');
   const files=[...manualBatchFiles], btn=document.getElementById('uploadBtn');
+  const sharedSettings=settings(), sharedFormat=outFormat;
+  const restoreSharedSettings=()=>{
+    document.getElementById('speed').value=sharedSettings.speed;
+    document.getElementById('pitch').value=sharedSettings.pitch;
+    document.getElementById('volume').value=sharedSettings.volume;
+    setFormat(sharedFormat);onSlider();
+  };
   const progress=document.getElementById('manualBatchProgress'), text=document.getElementById('manualBatchProgressText'), results=document.getElementById('manualBatchResults');
   manualBatchRunning=true;btn.disabled=true;progress.classList.remove('hidden');results.innerHTML='';batchUploaded=[];
   let ok=0;
@@ -874,6 +962,7 @@ async function uploadManualQueueWithSettings(){
       const row=document.getElementById('batch-row-'+tempId);
       try{
         await loadFileIntoStudio(f);
+        restoreSharedSettings();
         const out=await doConvert();
         if(out.blob.size>20*1024*1024) throw new Error(`hasil ${out.format.toUpperCase()} lebih dari 20 MB`);
         row.innerHTML=`⏳ <b>${esc(f.name)}</b> — upload ke Roblox...`;
@@ -891,7 +980,7 @@ async function uploadManualQueueWithSettings(){
     }
     text.textContent=`Selesai: ${ok}/${files.length} berhasil diupload.`;
     if(batchUploaded.length) refreshBatchModeration();
-    try{await loadFileIntoStudio(files[0]);}catch{/* hasil upload tetap dipertahankan */}
+    try{await loadFileIntoStudio(files[0]);restoreSharedSettings();}catch{/* hasil upload tetap dipertahankan */}
   }finally{
     progress.classList.add('hidden');manualBatchRunning=false;btn.disabled=false;
     btn.textContent=`🚀 UPLOAD SEMUA ${manualBatchFiles.length} MUSIK`;
@@ -967,7 +1056,8 @@ async function uploadReuse(){
 function copyId(id){navigator.clipboard.writeText(id).then(()=>alert('✅ ID tersalin: '+id)).catch(()=>alert('ID: '+id));}
 function useId(id){
   document.getElementById('scriptId').value=id;
-  document.getElementById('scriptId').scrollIntoView({behavior:'smooth',block:'center'});
+  openTab('script');
+  setTimeout(()=>document.getElementById('scriptId').scrollIntoView({behavior:'smooth',block:'center'}),250);
   generateScript();
 }
 
@@ -1128,5 +1218,5 @@ function fmtTime(sec){
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a394a18d08c4183f',t:'MTc4OTEwODMwMg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
