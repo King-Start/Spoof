@@ -104,7 +104,7 @@
         <button class="btn-secondary" onclick="testAnimationKey()">🕺 Tes Animasi</button>
       </div>
       <div id="status" style="text-align:center;margin-top:8px;color:#4dff9d;font-size:.85rem;line-height:1.6"></div>
-      <p class="note"><b>Dua key disimpan terpisah di browser ini.</b> Key utama dipakai Audio & Model dengan <b>assets: asset:read + asset:write</b>. Key animasi hanya dipakai pencarian/download/reupload Animation dan membutuhkan izin tersebut ditambah <b>legacy-assets: legacy-asset:manage</b>. Jangan masukkan `.ROBLOSECURITY`.</p>
+      <p class="note"><b>Dua key disimpan terpisah di browser ini.</b> Key utama dipakai Audio & Model dengan <b>assets: asset:read + asset:write</b>; fitur kolaborator juga membutuhkan <b>asset-permissions:write</b>. Key animasi hanya dipakai pencarian/download/reupload Animation dan membutuhkan izin tersebut ditambah <b>legacy-assets: legacy-asset:manage</b>. Jangan masukkan `.ROBLOSECURITY`.</p>
     </details>
   </section>
 
@@ -200,9 +200,23 @@
   <!-- ========================================================= -->
   <section>
     <h2>📁 Upload Manual <span class="badge">file sendiri</span></h2>
+
+    <label>Upload massal langsung — maksimal 10 musik</label>
+    <div class="dropzone" id="batchDrop" onclick="document.getElementById('batchFiles').click()">
+      📚 Pilih 1–10 file audio sekaligus
+      <span style="font-size:.75rem;display:block;margin-top:6px">MP3 · OGG · WAV · FLAC — maks 20 MB per file</span>
+      <span class="filename hidden" id="batchFileNames"></span>
+    </div>
+    <input type="file" id="batchFiles" accept=".mp3,.ogg,.wav,.flac,audio/*" multiple class="hidden">
+    <button id="batchUploadBtn" class="btn-secondary" onclick="uploadAudioBatch()" disabled>🚀 Upload Semua (maks. 10)</button>
+    <div id="batchProgress" class="loading hidden"><div class="spinner"></div><span id="batchProgressText">Menyiapkan antrean...</span></div>
+    <div id="batchResults"></div>
+    <p class="note">Upload dilakukan satu per satu agar stabil dan setiap musik mendapat Asset ID serta status moderasi masing-masing. File dikirim langsung tanpa edit/convert.</p>
+
+    <label style="margin-top:20px">Edit satu file sebelum upload</label>
     <div class="dropzone" id="manualDrop" onclick="document.getElementById('manualFile').click()">
       📁 Klik / tarik file audio ke sini
-      <span style="font-size:.75rem;display:block;margin-top:6px">MP3 · OGG · WAV · FLAC — maks 25 MB</span>
+      <span style="font-size:.75rem;display:block;margin-top:6px">MP3 · OGG · WAV · FLAC — maks 20 MB</span>
       <span class="filename hidden" id="manualFileName"></span>
     </div>
     <input type="file" id="manualFile" accept=".mp3,.ogg,.wav,.flac,audio/*" class="hidden">
@@ -214,6 +228,15 @@
       <button class="btn-secondary" style="margin-top:0" onclick="checkExistingModeration()">🛡 Pantau</button>
     </div>
     <div id="manualModerationStatus" class="result hidden"></div>
+
+    <label style="margin-top:18px">Tambahkan kolaborator audio</label>
+    <input type="text" id="collabAssetId" inputmode="numeric" placeholder="Asset ID audio milikmu">
+    <div class="row">
+      <input type="text" id="collabUser" placeholder="User ID atau username teman Roblox" style="flex:2">
+      <button id="collabBtn" class="btn-secondary" style="margin-top:0" onclick="grantAudioCollaborator()">👤 Tambahkan</button>
+    </div>
+    <div id="collabResult" class="result hidden"></div>
+    <p class="note">Memberikan izin <b>Use</b> melalui Asset Permissions API resmi. API Key Utama perlu <b>asset-permissions:write</b>. Untuk pengguna individual, Roblox mensyaratkan dia sudah menjadi temanmu. Tidak memakai cookie.</p>
   </section>
 
   <!-- ========================================================= -->
@@ -318,7 +341,10 @@ let currentScript = '';
   if(animKey) document.getElementById('animApiKey').value=animKey;
   if(uid) document.getElementById('userId').value=uid;
   if(gid) document.getElementById('groupId').value=gid;
-  if(lastAssetId) document.getElementById('statusAssetId').value=lastAssetId;
+  if(lastAssetId){
+    document.getElementById('statusAssetId').value=lastAssetId;
+    document.getElementById('collabAssetId').value=lastAssetId;
+  }
   if((key||animKey)&&uid) document.getElementById('status').textContent=`✅ Kredensial dimuat · Utama ${key?'✓':'–'} · Animasi ${animKey?'✓':'–'}`;
 })();
 
@@ -605,7 +631,90 @@ document.getElementById('ownFile').addEventListener('change',async e=>{
   finally{document.getElementById('rescueLoading').classList.add('hidden');}
 });
 
-// Section Upload Manual (selalu tampil, tanpa harus spoof gagal dulu)
+// Upload massal langsung (1–10 file, antrean berurutan)
+let batchAudioFiles=[];
+let batchUploaded=[];
+let batchModerationTimer=null;
+const batchInput=document.getElementById('batchFiles');
+const batchDrop=document.getElementById('batchDrop');
+batchInput.addEventListener('change',e=>{setBatchFiles([...e.target.files]);e.target.value='';});
+['dragover','dragenter'].forEach(ev=>batchDrop.addEventListener(ev,e=>{e.preventDefault();batchDrop.classList.add('drag')}));
+['dragleave','drop'].forEach(ev=>batchDrop.addEventListener(ev,e=>{e.preventDefault();batchDrop.classList.remove('drag')}));
+batchDrop.addEventListener('drop',e=>setBatchFiles([...e.dataTransfer.files]));
+
+function setBatchFiles(files){
+  const allowed=files.filter(f=>/\.(mp3|ogg|wav|flac)$/i.test(f.name));
+  if(allowed.length!==files.length) alert('Sebagian file dilewati karena bukan MP3/OGG/WAV/FLAC.');
+  if(allowed.length>10) alert('Maksimal 10 file. Hanya 10 file pertama yang dipilih.');
+  batchAudioFiles=allowed.slice(0,10);
+  const tooBig=batchAudioFiles.filter(f=>f.size>20*1024*1024);
+  if(tooBig.length) alert('File di atas 20 MB akan gagal: '+tooBig.map(f=>f.name).join(', '));
+  const label=document.getElementById('batchFileNames');
+  label.classList.toggle('hidden',!batchAudioFiles.length);
+  label.textContent=batchAudioFiles.length?`${batchAudioFiles.length} file · ${(batchAudioFiles.reduce((n,f)=>n+f.size,0)/1024/1024).toFixed(1)} MB`:'';
+  document.getElementById('batchUploadBtn').disabled=!batchAudioFiles.length;
+}
+
+function batchRow(id){return document.getElementById('batch-row-'+id);}
+
+async function refreshBatchModeration(){
+  const key=localStorage.getItem('key')||'';
+  let pending=0;
+  for(const item of batchUploaded){
+    if(item.terminal) continue;
+    try{
+      const r=await fetch('/api/asset-status/'+item.id,{headers:{'x-api-key':key}});
+      const d=await r.json().catch(()=>({success:false,error:'Respons status tidak valid'}));
+      if(!d.success) throw new Error(d.error||'Status gagal');
+      item.terminal=!!d.terminal;
+      const row=batchRow(item.id);
+      if(row){
+        const icon=d.state==='APPROVED'?'✅':d.state==='REJECTED'?'❌':'⏳';
+        row.querySelector('.batch-state').innerHTML=`${icon} ${esc(d.label)}`;
+      }
+      if(!item.terminal) pending++;
+    }catch(e){
+      pending++;
+      const row=batchRow(item.id);if(row) row.querySelector('.batch-state').textContent='⚠️ '+e.message;
+    }
+  }
+  clearTimeout(batchModerationTimer);
+  if(pending) batchModerationTimer=setTimeout(refreshBatchModeration,15000);
+}
+
+async function uploadAudioBatch(){
+  if(!batchAudioFiles.length) return alert('Pilih file musik dulu!');
+  const key=localStorage.getItem('key')||'', uid=localStorage.getItem('uid')||'', gid=localStorage.getItem('gid')||'';
+  if(!key||!uid) return alert('Simpan API Key Utama dan User ID dulu!');
+  const files=[...batchAudioFiles], btn=document.getElementById('batchUploadBtn');
+  const progress=document.getElementById('batchProgress'), text=document.getElementById('batchProgressText'), results=document.getElementById('batchResults');
+  btn.disabled=true; progress.classList.remove('hidden'); results.innerHTML=''; batchUploaded=[];
+  let ok=0;
+  for(let i=0;i<files.length;i++){
+    const f=files[i];
+    text.textContent=`Upload ${i+1}/${files.length}: ${f.name}`;
+    const tempId='pending-'+i;
+    results.insertAdjacentHTML('beforeend',`<div id="batch-row-${tempId}" class="result warn" style="margin-top:8px">⏳ ${esc(f.name)} — mengupload...</div>`);
+    const row=document.getElementById('batch-row-'+tempId);
+    try{
+      if(f.size>20*1024*1024) throw new Error('lebih dari 20 MB');
+      const fd=new FormData();fd.append('file',f,f.name);fd.append('name',f.name.replace(/\.[^.]+$/,'').slice(0,50));
+      const headers={'x-api-key':key,'x-user-id':uid};if(gid)headers['x-group-id']=gid;
+      const r=await fetch('/api/upload',{method:'POST',headers,body:fd});
+      const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
+      if(!d.success) throw new Error(d.error||`Upload gagal (${r.status})`);
+      ok++;batchUploaded.push({id:String(d.newAssetId),terminal:false});
+      row.id='batch-row-'+d.newAssetId;row.className='result';
+      row.innerHTML=`✅ <b>${esc(f.name)}</b><br>ID: <b>${esc(d.newAssetId)}</b> · <span class="batch-state">⏳ Mengecek moderasi...</span><br><button class="btn-secondary" style="width:auto;padding:6px 12px;margin-top:6px" onclick="copyId('${esc(d.newAssetId)}')">📋 Copy ID</button>`;
+      localStorage.setItem('lastUploadedAssetId',String(d.newAssetId));
+    }catch(e){row.className='result error';row.innerHTML=`❌ <b>${esc(f.name)}</b><br>${esc(e.message)}`;}
+  }
+  text.textContent=`Selesai: ${ok}/${files.length} berhasil dikirim ke Roblox.`;
+  progress.classList.add('hidden');btn.disabled=false;
+  if(batchUploaded.length) refreshBatchModeration();
+}
+
+// Section Upload Manual satu file (selalu tampil, tanpa harus spoof gagal dulu)
 const manualDrop=document.getElementById('manualDrop');
 const manualFile=document.getElementById('manualFile');
 manualFile.addEventListener('change',e=>{manualLoad(e.target.files[0]);e.target.value='';});
@@ -890,6 +999,29 @@ function checkExistingModeration(){
   checkModerationNow(m[0],'manualModerationStatus');
 }
 
+async function grantAudioCollaborator(){
+  const assetRaw=document.getElementById('collabAssetId').value.trim();
+  const assetMatch=assetRaw.match(/\d{5,}/);
+  const collaborator=document.getElementById('collabUser').value.trim();
+  const key=localStorage.getItem('key')||'';
+  if(!key) return alert('Simpan API Key Utama dulu!');
+  if(!assetMatch) return alert('Masukkan Asset ID audio milikmu!');
+  if(!collaborator) return alert('Masukkan User ID atau username kolaborator!');
+  const btn=document.getElementById('collabBtn'), box=document.getElementById('collabResult');
+  btn.disabled=true; box.className='result'; box.innerHTML='⏳ Memeriksa user dan memberikan izin Use...';
+  try{
+    const r=await fetch('/api/grant-audio-collaborator',{
+      method:'POST', headers:{'Content-Type':'application/json','x-api-key':key},
+      body:JSON.stringify({assetId:assetMatch[0],collaborator})
+    });
+    const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
+    if(!d.success) throw new Error(d.error||`Gagal (${r.status})`);
+    box.className='result';
+    box.innerHTML=`✅ <b>${esc(d.collaboratorName)}</b> (${esc(d.collaboratorId)}) sekarang memiliki izin <b>Use</b> untuk audio ${esc(d.assetId)}.`;
+  }catch(e){box.className='result error';box.innerHTML=`❌ ${esc(e.message)}`;}
+  finally{btn.disabled=false;}
+}
+
 async function uploadReuse(){
   if(!audioBuf||!spoofMeta.originalBlob) return alert('Spoof dulu!');
   const key=localStorage.getItem('key'), uid=localStorage.getItem('uid'), gid=localStorage.getItem('gid')||'';
@@ -937,6 +1069,7 @@ async function uploadReuse(){
         `</div>`;
       document.getElementById('scriptId').value=d.newAssetId;
       document.getElementById('statusAssetId').value=d.newAssetId;
+      document.getElementById('collabAssetId').value=d.newAssetId;
       localStorage.setItem('lastUploadedAssetId',String(d.newAssetId));
       clearTimeout(moderationPollTimer);
       checkModerationNow(d.newAssetId);
@@ -1118,5 +1251,5 @@ function fmtTime(sec){
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a392fe05efd0ce03',t:'MTc4OTA5MTExOQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
