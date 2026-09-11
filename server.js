@@ -332,7 +332,7 @@ async function fetchAssetMeta(assetId) {
 app.get('/api/health', (req, res) => {
   res.json({
     status: '🦁 SirLion Audio Studio running!',
-    version: '1.6.0',
+    version: '1.8.0',
     node: process.version,
     ffmpeg: FFMPEG_BIN ? true : false,
     animationRepair: {
@@ -1151,6 +1151,77 @@ app.get('/api/asset-status/:id', async (req, res) => {
 });
 
 // ============================================================
+// AUDIO COLLABORATOR — POST /api/grant-audio-collaborator
+// Official Asset Permissions API; no Roblox session cookie is used.
+// ============================================================
+app.post('/api/grant-audio-collaborator', async (req, res) => {
+  const apiKey = String(req.headers['x-api-key'] || '').trim();
+  const assetId = String(req.body?.assetId || '').trim();
+  const collaborator = String(req.body?.collaborator || '').trim().replace(/^@/, '');
+  if (!apiKey) return res.status(400).json({ success: false, error: 'API Key Utama diperlukan.' });
+  if (!/^\d+$/.test(assetId)) return res.status(400).json({ success: false, error: 'Asset ID audio harus angka.' });
+  if (!collaborator) return res.status(400).json({ success: false, error: 'Masukkan User ID atau username kolaborator.' });
+
+  try {
+    let collaboratorId, collaboratorName;
+    if (/^\d+$/.test(collaborator)) {
+      const u = await fetch(`https://users.roblox.com/v1/users/${collaborator}`, { headers: UA, signal: AbortSignal.timeout(15000) });
+      const uj = await u.json().catch(() => ({}));
+      if (!u.ok || !uj.id) return res.status(404).json({ success: false, error: `User ID ${collaborator} tidak ditemukan.` });
+      collaboratorId = String(uj.id); collaboratorName = uj.name || collaboratorId;
+    } else {
+      const u = await fetch('https://users.roblox.com/v1/usernames/users', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...UA },
+        body: JSON.stringify({ usernames: [collaborator], excludeBannedUsers: false }),
+        signal: AbortSignal.timeout(15000)
+      });
+      const uj = await u.json().catch(() => ({}));
+      const found = uj.data && uj.data[0];
+      if (!found) return res.status(404).json({ success: false, error: `Username "${collaborator}" tidak ditemukan.` });
+      collaboratorId = String(found.id); collaboratorName = found.name || collaborator;
+    }
+
+    // Confirm the key can manage this asset and that it is Audio.
+    const metaResponse = await fetch(`https://apis.roblox.com/assets/v1/assets/${assetId}`, {
+      headers: { 'x-api-key': apiKey }, signal: AbortSignal.timeout(15000)
+    });
+    const meta = await metaResponse.json().catch(() => ({}));
+    if (!metaResponse.ok) {
+      return res.status(metaResponse.status).json({ success: false, error: metaResponse.status === 403
+        ? 'Key tidak dapat mengelola asset ini. Pastikan asset:read aktif dan asset dimiliki creator key.'
+        : meta.message || `Gagal memeriksa asset (${metaResponse.status}).` });
+    }
+    const type = String(meta.assetType || '').toUpperCase();
+    if (type && !type.includes('AUDIO')) return res.status(400).json({ success: false, error: `Asset ${assetId} bukan Audio (${meta.assetType}).` });
+
+    const grant = await fetch('https://apis.roblox.com/asset-permissions-api/v1/assets/permissions', {
+      method: 'PATCH',
+      headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json-patch+json' },
+      body: JSON.stringify({
+        subjectType: 'User', subjectId: collaboratorId, action: 'Use',
+        requests: [{ assetId: Number(assetId) }]
+      }),
+      signal: AbortSignal.timeout(20000)
+    });
+    const data = await grant.json().catch(() => ({}));
+    if (!grant.ok) {
+      const msg = grant.status === 403
+        ? 'Roblox menolak (403). Tambahkan asset-permissions:write pada API Key Utama, pastikan kamu pemilik asset, dan user tersebut adalah teman Roblox-mu.'
+        : data?.error?.message || data.message || `Asset Permissions API gagal (${grant.status}).`;
+      return res.status(grant.status).json({ success: false, error: msg, details: data });
+    }
+    const successes = (data.successAssetIds || []).map(String);
+    const errors = data.errors || [];
+    if (!successes.includes(assetId) || errors.length) {
+      return res.status(400).json({ success: false, error: `Roblox tidak memberikan izin: ${errors[0]?.code || 'hasil tidak dikonfirmasi'}`, details: data });
+    }
+    res.json({ success: true, assetId, collaboratorId, collaboratorName, permission: 'Use' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error?.name === 'TimeoutError' ? 'Roblox timeout.' : error.message });
+  }
+});
+
+// ============================================================
 // TES KREDENSIAL — POST /api/check-key { apiKey, userId, groupId? }
 // ============================================================
 app.post('/api/check-key', async (req, res) => {
@@ -1287,5 +1358,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🦁 SirLion Audio Studio v1.6.0 running on port ${PORT}`);
+  console.log(`🦁 SirLion Audio Studio v1.8.0 running on port ${PORT}`);
 });
