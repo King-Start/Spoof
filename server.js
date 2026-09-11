@@ -332,7 +332,7 @@ async function fetchAssetMeta(assetId) {
 app.get('/api/health', (req, res) => {
   res.json({
     status: '🦁 SirLion Audio Studio running!',
-    version: '1.8.0',
+    version: '1.9.0',
     node: process.version,
     ffmpeg: FFMPEG_BIN ? true : false,
     animationRepair: {
@@ -1222,6 +1222,48 @@ app.post('/api/grant-audio-collaborator', async (req, res) => {
 });
 
 // ============================================================
+// BULK AUDIO COLLABORATOR — up to 100 assets per Roblox API call.
+// The browser queues as many calls/subjects as requested.
+// ============================================================
+app.post('/api/grant-audio-collaborators-bulk', async (req, res) => {
+  const apiKey = String(req.headers['x-api-key'] || '').trim();
+  const collaboratorId = String(req.body?.collaboratorId || '').trim();
+  const rawIds = Array.isArray(req.body?.assetIds) ? req.body.assetIds : [];
+  const assetIds = [...new Set(rawIds.map(String).map(x => x.trim()).filter(Boolean))];
+  if (!apiKey) return res.status(400).json({ success: false, error: 'API Key Utama diperlukan.' });
+  if (!/^\d+$/.test(collaboratorId)) return res.status(400).json({ success: false, error: 'User ID tujuan harus angka.' });
+  if (!assetIds.length) return res.status(400).json({ success: false, error: 'Minimal satu Asset ID diperlukan.' });
+  if (assetIds.length > 100) return res.status(400).json({ success: false, error: 'Maksimal 100 Asset ID per permintaan internal.' });
+  if (assetIds.some(id => !/^\d+$/.test(id) || !Number.isSafeInteger(Number(id)))) {
+    return res.status(400).json({ success: false, error: 'Semua Asset ID harus berupa angka valid.' });
+  }
+  try {
+    const grant = await fetch('https://apis.roblox.com/asset-permissions-api/v1/assets/permissions', {
+      method: 'PATCH',
+      headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json-patch+json' },
+      body: JSON.stringify({
+        subjectType: 'User', subjectId: collaboratorId, action: 'Use',
+        requests: assetIds.map(assetId => ({ assetId: Number(assetId) }))
+      }),
+      signal: AbortSignal.timeout(30000)
+    });
+    const data = await grant.json().catch(() => ({}));
+    if (!grant.ok) {
+      const message = grant.status === 403
+        ? 'Roblox menolak (403): aktifkan asset-permissions:write, gunakan asset milik creator key, dan pastikan User tujuan sudah menjadi teman.'
+        : grant.status === 429 ? 'Rate-limit Roblox (429). Tunggu sekitar satu menit lalu lanjutkan lagi.'
+        : data?.error?.message || data.message || `Asset Permissions API gagal (${grant.status}).`;
+      return res.status(grant.status).json({ success: false, error: message, details: data });
+    }
+    const successIds = (data.successAssetIds || []).map(String);
+    const errors = (data.errors || []).map(error => ({ assetId: String(error.assetId || ''), code: String(error.code || 'UNKNOWN') }));
+    res.json({ success: true, collaboratorId, granted: successIds.length, failed: errors.length, successAssetIds: successIds, errors });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error?.name === 'TimeoutError' ? 'Roblox timeout saat memberikan izin.' : error.message });
+  }
+});
+
+// ============================================================
 // TES KREDENSIAL — POST /api/check-key { apiKey, userId, groupId? }
 // ============================================================
 app.post('/api/check-key', async (req, res) => {
@@ -1358,5 +1400,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🦁 SirLion Audio Studio v1.8.0 running on port ${PORT}`);
+  console.log(`🦁 SirLion Audio Studio v1.9.0 running on port ${PORT}`);
 });

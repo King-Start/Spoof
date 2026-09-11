@@ -1,6 +1,6 @@
 {
   "name": "sirlion-studio",
-  "version": "1.5.1",
+  "version": "1.9.0",
   "description": "SirLion Audio Studio - Spoof, Edit & Upload Audio Roblox",
   "main": "server.js",
   "scripts": {

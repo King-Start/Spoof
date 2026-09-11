@@ -1,4 +1,4 @@
-# 🦁 SirLion Audio Studio v1.8.0
+# 🦁 SirLion Audio Studio v1.9.0
 
 **Spoof → Edit → Convert → Upload → Generate Script.** Semua dalam satu web.
 
@@ -8,7 +8,7 @@
 2. **Panel kontrol** muncul: Play/Pause + progress, slider **Speed** (0.5–2x), **Pitch** (−12…+12 st), **Volume** (0–200%), semua real-time (Web Audio API).
 3. **Format** MP3/OGG/WAV → **🔄 Convert** (backend ffmpeg: `atempo` + `rubberband` + `volume` + transcode).
 4. **🚀 Upload & Pantau Moderasi** — convert otomatis lalu upload via Open Cloud. ID baru langsung tampil, tetapi tidak dianggap approved sebelum status resmi Roblox berubah menjadi Approved; halaman memeriksa status otomatis setiap 15 detik.
-5. **📚 Upload Massal** — pilih 1–10 file MP3/OGG/WAV/FLAC sekaligus. File asli diupload langsung dalam antrean stabil, masing-masing menampilkan Asset ID dan status moderasi sendiri.
+5. **📚 Antrean Upload Manual** — pilih 1–10 file MP3/OGG/WAV/FLAC ke website terlebih dahulu, atur speed/pitch/volume/format seperti biasa, lalu satu tombol menerapkan pengaturan yang sama dan mengupload seluruh antrean ke Roblox. Setiap musik menampilkan Asset ID dan status moderasinya sendiri.
 6. **🕺 Spoof Animasi** — cari Animation publik atau masukkan ID → download RBXM resmi → reupload ke akun/grup pengguna.
 7. **📦 Upload Model** — pilih `.rbxm`/`.rbxmx` → upload sebagai Model/package ke akun/grup pengguna.
 8. **📜 Generate Script** — Lua client/server/GUI + syntax highlight + copy/download.
@@ -72,16 +72,20 @@ GET /api/spoof-audio/:id
 | GET | `/api/search-animation?keyword=&limit=` | Cari Animation publik di Creator Store |
 | POST | `/api/reupload-animation/:id` | Download RBXM publik → upload sebagai Animation baru |
 | GET | `/api/asset-status/:id` | Baca status moderasi resmi asset milik pengguna dengan `asset:read` |
-| POST | `/api/grant-audio-collaborator` | Berikan izin Use audio ke User ID/username dengan `asset-permissions:write` |
+| POST | `/api/grant-audio-collaborator` | Berikan izin Use satu audio ke User ID/username |
+| POST | `/api/grant-audio-collaborators-bulk` | Berikan izin Use hingga 100 audio per panggilan internal ke satu User ID |
 | POST | `/api/upload-model` | Upload file RBXM/RBXMX sebagai Model/package baru |
 
 ## Kolaborator Audio 👤
 
-Masukkan Asset ID audio milikmu serta User ID atau username teman, lalu aplikasi
-memberikan izin **Use** melalui endpoint resmi Asset Permissions API. API Key Utama
-memerlukan scope **asset-permissions:write** selain `asset:read`. Untuk penerima
-individual, Roblox mensyaratkan pengguna tersebut sudah menjadi teman pemilik asset.
-Aplikasi tidak menggunakan `.ROBLOSECURITY`.
+Tempel banyak Asset ID audio serta banyak User ID tujuan menggunakan koma, spasi,
+atau baris baru. Aplikasi memberikan izin **Use** untuk setiap kombinasi asset × user.
+UI tidak menetapkan batas total; asset dipecah menjadi kelompok 100 dan tujuan diproses
+berurutan dengan jeda agar menghormati rate-limit Roblox. Batch besar mengharuskan tab
+browser tetap terbuka dan dapat tetap dibatasi oleh kuota API Roblox. API Key Utama
+memerlukan scope **asset-permissions:write** selain `asset:read`. Setiap penerima
+individual harus sudah menjadi teman pemilik asset. Aplikasi tidak menggunakan
+`.ROBLOSECURITY`.
 
 ## Upload Model RBXM 📦
 
