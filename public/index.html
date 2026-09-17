@@ -254,14 +254,13 @@
     </div>
     <div id="animResults"></div>
     <div class="orline">— atau —</div>
-    <label>Reupload langsung dari ID Animation</label>
-    <div class="row">
-      <input type="text" id="animId" inputmode="numeric" placeholder="ID animasi / link Creator Store" style="flex:2">
-      <button id="animDirectBtn" style="margin-top:0" onclick="animationReuploadDirect()">♻️ Reupload</button>
-    </div>
-    <div id="animLoading" class="loading hidden"><div class="spinner"></div><span id="animLoadingText">Memproses animasi...</span></div>
+    <label>Repair & reupload banyak ID Animation</label>
+    <textarea id="animIds" inputmode="numeric" rows="6" placeholder="Pisahkan ID / link dengan koma, spasi, atau baris baru&#10;507771019,&#10;507776043,&#10;https://create.roblox.com/store/asset/507777826"></textarea>
+    <button id="animBulkBtn" onclick="animationReuploadBulk()">♻️ Repair & Reupload Semua Animasi</button>
+    <div id="animLoading" class="loading hidden"><div class="spinner"></div><span id="animLoadingText">Menyiapkan antrean animasi...</span></div>
     <div id="animResult" class="result hidden"></div>
-    <p class="note">Tombol Reupload otomatis memindai RBXM, menghapus atribut <b>MaxPartTranslation</b>, mendeteksi rig R6/R15, lalu menerbitkan ID baru. API Key wajib memiliki <b>assets: asset:read + asset:write</b> dan <b>legacy-assets: legacy-asset:manage</b>. Animasi privat orang lain tetap tidak dapat diambil. Jangan masukkan cookie `.ROBLOSECURITY`.</p>
+    <div id="animBatchResults"></div>
+    <p class="note">Daftar ID tidak dibatasi oleh UI dan diproses satu per satu. Setiap animasi dipindai sebagai RBXM, atribut <b>MaxPartTranslation</b> diperbaiki, rig R6/R15 dideteksi, lalu diterbitkan sebagai ID baru. Biarkan halaman tetap terbuka sampai antrean selesai. API Key Animasi wajib memiliki <b>assets: asset:read + asset:write</b> dan <b>legacy-assets: legacy-asset:manage</b>. Animasi privat orang lain tetap tidak dapat diambil.</p>
   </section>
 
   <!-- ========================================================= -->
@@ -314,7 +313,7 @@
     </div>
   </section>
 
-  <footer>SirLion Studio v2.0 · Built for Roblox creators · Open Cloud only</footer>
+  <footer>SirLion Studio v2.1 · Built for Roblox creators · Open Cloud only</footer>
 </div>
 
 <script>
@@ -1092,12 +1091,36 @@ async function animationSearch(){
   finally{btn.disabled=false;}
 }
 
-function animationReuploadDirect(){
-  const raw=document.getElementById('animId').value.trim();
-  const m=raw.match(/\d{5,}/);
-  if(!m) return alert('Masukkan ID animasi atau link Creator Store!');
-  document.getElementById('animId').value=m[0];
-  animationReupload(m[0],'');
+async function animationReuploadBulk(){
+  const ids=parseBulkIds(document.getElementById('animIds').value);
+  const key=localStorage.getItem('animKey')||'', uid=localStorage.getItem('uid')||'', gid=localStorage.getItem('gid')||'';
+  if(!ids.length)return alert('Masukkan minimal satu ID animasi atau link Creator Store!');
+  if(!key||!uid)return alert('Isi dan Simpan API Key Khusus Animasi + User ID di Kredensial dulu!');
+  if(!confirm(`Repair dan reupload ${ids.length} animasi satu per satu?`))return;
+  const btn=document.getElementById('animBulkBtn'), loading=document.getElementById('animLoading'), txt=document.getElementById('animLoadingText');
+  const summary=document.getElementById('animResult'), results=document.getElementById('animBatchResults');
+  btn.disabled=true;loading.classList.remove('hidden');summary.classList.add('hidden');results.innerHTML='';
+  let ok=0,failed=0;
+  try{
+    for(let i=0;i<ids.length;i++){
+      const id=ids[i], rowId=`anim-batch-${i}`;
+      txt.textContent=`${i+1}/${ids.length}: download, repair, dan reupload Animation ${id}...`;
+      results.insertAdjacentHTML('beforeend',`<div id="${rowId}" class="result warn">⏳ <b>Animation ${esc(id)}</b><br>Memproses RBXM...</div>`);
+      const row=document.getElementById(rowId);
+      try{
+        const r=await fetch('/api/reupload-animation/'+id,{
+          method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'x-user-id':uid,'x-group-id':gid},
+          body:JSON.stringify({name:'',stripMaxPartTranslation:true})
+        });
+        const d=await r.json().catch(()=>({success:false,error:'Server tidak merespons JSON'}));
+        if(!d.success)throw new Error(d.error||`Reupload gagal (${r.status})`);
+        ok++;row.className='result';
+        row.innerHTML=`✅ <b>${esc(d.name||('Animation '+id))}</b><br>ID lama: ${esc(id)} → ID baru: <b>${esc(d.newAssetId)}</b><br>Rig: <b>${esc(d.rig||'Unknown')}</b> · MaxPartTranslation dihapus: <b>${esc(String(d.removedMaxPartTranslation||0))}</b><div class="row" style="margin-top:8px"><button class="btn-secondary" style="margin-top:0" onclick="copyId('${esc(d.newAssetId)}')">📋 Copy ID Baru</button><button class="btn-secondary" style="margin-top:0" onclick="window.open('${esc(d.storeUrl||'')}','_blank')">↗ Buka Asset</button></div>`;
+      }catch(e){failed++;row.className='result error';row.innerHTML=`❌ <b>Animation ${esc(id)}</b><br>${esc(e.message)}`;}
+      if(i<ids.length-1)await waitMs(400);
+    }
+    summary.className=failed?'result warn':'result';summary.innerHTML=`${failed?'⚠️':'✅'} <b>Antrean animasi selesai</b><br>Total: ${ids.length} · Berhasil: <b>${ok}</b> · Gagal: <b>${failed}</b>`;
+  }finally{btn.disabled=false;loading.classList.add('hidden');}
 }
 
 async function animationReupload(id, encodedName=''){
@@ -1218,5 +1241,5 @@ function fmtTime(sec){
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a394a18d08c4183f',t:'MTc4OTEwODMwMg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>
